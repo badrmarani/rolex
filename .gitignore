@@ -2,3 +2,4 @@ data/
 report/
 
 *.pyc
+__pycache__/
