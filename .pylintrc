@@ -1,0 +1,16 @@
+[REPORTS]
+output-format=colorized
+
+[FORMAT]
+max-line-length=88
+
+[MESSAGES CONTROL]
+disable=
+    bad-continuation, # https://github.com/ambv/black/issues/48
+    logging-fstring-interpolation, # https://github.com/PyCQA/pylint/issues/2395
+    too-few-public-methods,
+    too-many-ancestors,
+    too-many-arguments,
+    too-many-instance-attributes,
+    too-many-locals,
+    too-many-public-methods
