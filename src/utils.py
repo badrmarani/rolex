@@ -69,7 +69,7 @@ def train_one_epoch(epoch, model, loader, loss_fn, optimizer, device, log_interv
         optimizer.zero_grad()
         xhat, mu, logvar = model(x)
 
-        loss, rec_loss, kld_loss = loss_fn(x, xhat, mu, logvar, mode="gaussian")
+        loss, rec_loss, kld_loss = loss_fn(x, xhat, mu, logvar)
         train_loss += loss.item()
         train_rec_loss += rec_loss.item()
         train_kld_loss += kld_loss.item()
@@ -78,7 +78,7 @@ def train_one_epoch(epoch, model, loader, loss_fn, optimizer, device, log_interv
 
         if not i % log_intervall:
             print(
-                "train epoch: {} [{}/{} ({:.0f}%)] loss: {:.6f} kld_loss {:.6f} rec_loss {:.6f}".format(
+                "train epoch: {} [{}/{} ({:.0f}%)] elbo_loss: {:.6f} kld_loss {:.6f} rec_loss {:.6f}".format(
                     epoch,
                     i * len(batch),
                     len(batch) * len(loader),
@@ -90,7 +90,7 @@ def train_one_epoch(epoch, model, loader, loss_fn, optimizer, device, log_interv
             )
 
     print(
-        "epoch: {} avg_loss: {:.6f} avg_kld_loss {:.6f} avg_rec_loss {:.6f}".format(
+        "epoch: {} avg_elbo_loss: {:.6f} avg_kld_loss {:.6f} avg_rec_loss {:.6f}".format(
             epoch,
             train_loss / len(loader.dataset),
             train_kld_loss / len(loader.dataset),

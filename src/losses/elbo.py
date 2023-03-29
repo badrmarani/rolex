@@ -1,49 +1,43 @@
 import torch
 from torch import nn, distributions
 
-
 class ELBOLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, device: torch.device) -> None:
         super().__init__()
 
-    def forward(self, x, xhat, mu, logvar, mode):
-        if mode.lower() == "gaussian":
-            # x|z ~ N(xhat,1)
-            # rec_loss = nn.functional.mse_loss(xhat, x, reduciton="sum")
-            # rec_loss = (x-xhat)**2 + torch.tensor(2*torch.pi).log()
-            # rec_loss *= - 0.5
-            # rec_loss = rec_loss.mean()
-            rec_loss = nn.functional.gaussian_nll_loss(
-                xhat,
-                x,
-                var=torch.ones_like(x),
-                full=False,
-                reduction="sum",
-            )
-        else:
-            # x|z ~ Ber(xhat)
-            rec_loss = nn.functional.binary_cross_entropy_with_logits(
-                xhat, x, reduciton="sum"
-            )
+        self.log_scale = nn.Parameter(
+            torch.tensor([0.0], device=device),
+            requires_grad=True,
+        )
+    
+    def kld_divergence(self, z, mu, std):
+        log_pz = distributions.Normal(
+            torch.zeros_like(mu),
+            torch.ones_like(std),
+        ).log_prob(z)
+        
+        log_qzx = distributions.Normal(mu, std).log_prob(z)
 
-        kld_loss = -0.5 * torch.sum(1 + logvar - mu**2 - logvar.exp())
+        kld_loss = log_qzx - log_pz
+        return kld_loss.sum(-1)
 
-        # pz = distributions.Normal(
-        #     torch.zeros_like(mu),
-        #     torch.ones_like(mu),
-        # )
+    def gaussian_likelihood(self, xhat, x):
+        scale = self.log_scale
+        log_pxz = distributions.Normal(xhat, scale).log_prob(x)
+        return log_pxz.sum(-1)
 
-        # qz = distributions.Normal(mu, torch.exp(0.5*logvar))
-        # kld_loss = - distributions.kl_divergence(qz, pz).sum()
-
-        # rec_loss = distributions.Normal(
-        #     xhat,
-        #     0.01 * torch.ones_like(xhat),
-        # ).log_prob(x).sum(-1).mean()
-        elbo_loss = rec_loss + kld_loss
-
+    def forward(self, x, xhat, mu, logvar):
+        std = logvar.mul(0.5).exp()
+        p_zx = distributions.Normal(mu, std)
+        z = p_zx.rsample()
+        
+        kld_loss = self.kld_divergence(z, mu, std)
+        rec_loss = self.gaussian_likelihood(xhat, x)
+        elbo_loss = kld_loss - rec_loss
+        elbo_loss = elbo_loss.mean()
+        
         return (
             elbo_loss,
-            rec_loss,
-            kld_loss,
+            rec_loss.mean(),
+            kld_loss.mean(),
         )
