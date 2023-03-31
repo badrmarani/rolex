@@ -22,8 +22,13 @@ class ELBOLoss(nn.Module):
         return kld_loss.sum(-1)
 
     def gaussian_likelihood(self, xhat, x):
-        scale = self.log_scale
+        scale = self.log_scale.exp()
         log_pxz = distributions.Normal(xhat, scale).log_prob(x)
+        return log_pxz.sum(-1)
+
+    def bernoulli_likelihood(self, xhat, x):
+        xhat = torch.sigmoid(xhat)
+        log_pxz = distributions.Bernoulli(xhat, validate_args=False).log_prob(x)
         return log_pxz.sum(-1)
 
     def forward(self, x, xhat, mu, logvar):
@@ -32,7 +37,7 @@ class ELBOLoss(nn.Module):
         z = p_zx.rsample()
         
         kld_loss = self.kld_divergence(z, mu, std)
-        rec_loss = self.gaussian_likelihood(xhat, x)
+        rec_loss = self.bernoulli_likelihood(xhat, x)
         elbo_loss = kld_loss - rec_loss
         elbo_loss = elbo_loss.mean()
         
