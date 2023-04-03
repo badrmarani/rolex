@@ -76,13 +76,14 @@ class PrepareQualityDataset():
         fit, val = self.fit_val_split(self.train_size, self.shuffle)
         metadata = get_metadata(fit)
 
-        transformer = fit_data_transformer(fit, metadata)
-        fit_trs = transformer.transform(fit)
-        val_trs = transformer.transform(val)
+        self.transformer = fit_data_transformer(fit, metadata)
+        val_trs = self.transformer.transform(val)
+        fit_trs = self.transformer.transform(fit)
 
-        self.fit = data.TensorDataset(torch.from_numpy(fit_trs.astype(np.float64)))
-        self.val = data.TensorDataset(torch.from_numpy(val_trs.astype(np.float64)))
-
+        self.fit = data.TensorDataset(
+            torch.from_numpy(fit_trs[:, :-2]), torch.from_numpy(fit_trs[:, -2:]))
+        self.val = data.TensorDataset(
+            torch.from_numpy(val_trs[:, :-2]), torch.from_numpy(val_trs[:, -2:]))
         return (
             self.fit, self.val
         )
