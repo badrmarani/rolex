@@ -1,9 +1,9 @@
-# WIP : Uncertainty Quantification in Latent Space
+# WIP - Uncertainty Quantification in Latent Space
 
 ## Dependencies
 
-```shell
-conda create --name uq-vae --file requirements.txt
+```bash
+conda env create -f environment.yml
 conda activate uq-vae
 pip install -e .
 ```
