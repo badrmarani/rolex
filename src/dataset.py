@@ -1,6 +1,8 @@
 import os
+import warnings
 
-import numpy as np
+warnings.filterwarnings("ignore")
+
 import pandas as pd
 import torch
 from ctgan.data_transformer import DataTransformer
@@ -10,80 +12,54 @@ from sklearn.model_selection import train_test_split
 from torch.utils import data
 
 
-def cvt_int64_to_bool(df: pd.DataFrame):
-    categorical_features = [col for col in df.columns if df[col].dtype == "int64"]
-    df[categorical_features] = df[categorical_features].astype("bool")
-    return df
-
-
-def get_metadata(
-    df: pd.DataFrame,
-    save_metadata: str = None,
+def fit_val_split(
+    tensor,
+    train_size: float = 0.7,
+    shuffle: bool = True,
 ):
-    df = cvt_int64_to_bool(df)
-    metadata = SingleTableMetadata()
-    metadata.detect_from_dataframe(df)
+    indx = torch.arange(0, tensor.size(0) - 1, 1)
+    fit_indx, val_indx = train_test_split(indx, train_size=train_size, shuffle=shuffle)
+    return (
+        data.TensorDataset(tensor[fit_indx, :-2], tensor[fit_indx, -2:]),
+        data.TensorDataset(tensor[val_indx, :-2], tensor[val_indx, -2:]),
+    )
 
+
+def prepare_quality_dateset(
+    dataset: pd.DataFrame,
+    targets: pd.DataFrame,
+    train_size: float = 0.7,
+    shuffle: bool = True,
+    save_metadata: bool = None,
+):
+    metadata = SingleTableMetadata()
+    metadata.detect_from_dataframe(dataset)
+
+    binary_columns = [col for col in dataset.columns if dataset[col].dtype == "int64"]
+
+    for feat in binary_columns:
+        metadata.update_column(
+            column_name=feat,
+            sdtype="categorical",
+        )
     if save_metadata is not None:
         if os.path.exists(save_metadata):
             os.remove(save_metadata)
         metadata.save_to_json(filepath=save_metadata)
 
-    return metadata
-
-
-def fit_data_transformer(
-    dataset: pd.DataFrame,
-    metadata,
-):
-    transformer = DataTransformer()
     discrete_columns = detect_discrete_columns(metadata, dataset)
+    transformer = DataTransformer()
     transformer.fit(dataset, discrete_columns)
-    return transformer
 
+    transformed_data = transformer.transform(dataset)
+    transformed_data = torch.from_numpy(transformed_data)
 
-class PrepareQualityDataset():
-    def __init__(
-        self,
-        df: pd.DataFrame,
-        train_size: float = 0.7,
-        shuffle: bool = True,
-    ) -> None:
-        super(PrepareQualityDataset, self).__init__()
+    targets = torch.from_numpy(targets.values.astype("float"))
+    all_tensors = torch.cat((transformed_data, targets), dim=-1)
+    fit, val = fit_val_split(all_tensors, train_size=train_size, shuffle=shuffle)
 
-        self.df = cvt_int64_to_bool(df)
-        self.train_size = train_size
-        self.shuffle = shuffle
-
-
-    def fit_val_split(
-        self,
-        train_size: float = 0.7,
-        shuffle: bool = True,
-    ):
-        indx = torch.arange(0, self.df.shape[0] - 1, 1)
-        fit_indx, val_indx = train_test_split(
-            indx, train_size=train_size, shuffle=shuffle
-        )
-        return (
-            self.df.iloc[fit_indx, :],
-            self.df.iloc[val_indx, :],
-        )
-
-
-    @property
-    def run(self):
-        fit, val = self.fit_val_split(self.train_size, self.shuffle)
-        metadata = get_metadata(fit)
-
-        self.transformer = fit_data_transformer(fit, metadata)
-        val_trs = self.transformer.transform(val)
-        fit_trs = self.transformer.transform(fit)
-
-        self.fit = data.TensorDataset(
-            torch.from_numpy(fit_trs[:, :-2]), torch.from_numpy(fit_trs[:, -2:]))
-        self.val = data.TensorDataset(
-            torch.from_numpy(val_trs[:, :-2]), torch.from_numpy(val_trs[:, -2:]))
-        return (
-            self.fit, self.val
-        )
+    return (
+        transformer,
+        fit,
+        val,
+    )
