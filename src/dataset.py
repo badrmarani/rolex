@@ -25,7 +25,7 @@ def fit_val_split(
     )
 
 
-def prepare_quality_dateset(
+def prepare_quality_dataset(
     dataset: pd.DataFrame,
     targets: pd.DataFrame,
     train_size: float = 0.7,
