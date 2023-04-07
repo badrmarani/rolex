@@ -1,3 +1,5 @@
+import warnings
+
 import pytorch_lightning as pl
 import torch
 from lightning.pytorch import loggers
@@ -10,7 +12,6 @@ from src.losses import ELBOLoss
 from src.models import VAE
 from src.training import VAETrainer
 
-import warnings
 warnings.filterwarnings("ignore")
 
 transform = transforms.Compose(
