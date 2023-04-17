@@ -11,12 +11,9 @@ class Encoder(nn.Module):
 	):
 		super(Encoder, self).__init__()
 
-		hid_size = emb_size//2
 		encode = [
 			nn.Linear(inp_size, emb_size), nn.Tanh(),
-			nn.Linear(emb_size, hid_size), nn.Tanh(),
-			# nn.Linear(hid_size, emb_size//4), nn.Tanh(),
-			# nn.BatchNorm1d(emb_size//4),
+			nn.Linear(emb_size, emb_size), nn.Tanh(),
 		]
 
 		if dropout:
@@ -25,8 +22,8 @@ class Encoder(nn.Module):
 			encode.insert(5, drop)
 		self.encode = nn.Sequential(*encode)
 
-		self.mu = nn.Linear(hid_size, lat_size)
-		self.logvar = nn.Linear(hid_size, lat_size)
+		self.mu = nn.Linear(emb_size, lat_size)
+		self.logvar = nn.Linear(emb_size, lat_size)
 
 	def forward(self, tensor):
 		tmp = self.encode(tensor)
@@ -46,12 +43,9 @@ class Decoder(nn.Module):
 	):
 		super(Decoder, self).__init__()
 
-		hid_size = emb_size//2
 		decode = [
-			nn.Linear(lat_size, hid_size), nn.Tanh(),
-			nn.Linear(hid_size, out_size), 
-			# nn.Tanh(),
-			# nn.BatchNorm1d(out_size),
+			nn.Linear(lat_size, emb_size), nn.Tanh(),
+			nn.Linear(emb_size, out_size), nn.Sigmoid(),
 		]
 
 		if dropout:

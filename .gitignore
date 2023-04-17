@@ -1,12 +1,5 @@
 data/
-logs/
 report/
-results*
-
-*log*/
-references/
-
-mnist/
 
 *.pyc
 *.egg-info/
