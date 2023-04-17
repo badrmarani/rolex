@@ -19,8 +19,23 @@ class VAE(nn.Module):
 	def reparameterization(self, mu, logvar):
 		std = logvar.mul(0.5).exp()
 		eps = torch.randn_like(std, dtype=mu.dtype, device=mu.device)		
-		z = mu + std * eps
-		return z
+		return mu + std * eps
+
+	def loss_function(self, x, xhat, mu, logvar):
+		bs = x.size(0)
+		rec_loss = nn.functional.mse_loss(
+			xhat.view(bs, -1),
+			x.view(bs, -1),
+			reduction="none",
+		).sum(dim=-1)
+
+		kld_loss = -0.5 * torch.sum(1+logvar-mu.pow(2)-logvar.exp(), dim=-1)
+
+		return (
+			(rec_loss + kld_loss).mean(dim=0),
+			rec_loss.mean(dim=0).detach(),
+			kld_loss.mean(dim=0).detach(),
+		)
 
 	def forward(self, tensor):
 		mu, logvar = self.encoder(tensor)
