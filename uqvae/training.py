@@ -46,7 +46,8 @@ class MyBaseTrainer(pl.LightningModule):
 class VAETrainer(MyBaseTrainer):
 
     def _get_loss(self, batch):
-        x, y = batch
+        x = batch
+        print(x.size())
         xhat, mu, logvar = self.model(x)
-        z = self.model.reparameterization(mu, logvar)
+        z = self.model.rsample(mu, logvar)
         return self.model.loss_function(x, xhat, mu, logvar)
