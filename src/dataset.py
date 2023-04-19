@@ -12,6 +12,14 @@ from sklearn.model_selection import train_test_split
 from torch.utils import data
 
 
+def split_dataset(df: pd.DataFrame):
+    return (
+        df.loc[:, "data_000":"data_135"],  # production params
+        df.loc[:, "data_136":"data_196"],  # contextual params
+        df.loc[:, "data_197":"data_211"],  # subs. quality properties
+    )
+
+
 def fit_val_split(
     tensor,
     train_size: float = 0.7,
