@@ -1,0 +1,13 @@
+
+
+DATASET:
+  ROOT: ""
+  BATCH_SIZE: 32
+MODEL:
+  HEAD:
+    INP_SIZE: 400
+    EMB_SIZE: 128
+    LAT_SIZE: 8
+  SOLVER:
+    LR: 0.003
+    LOSS: elbo_loss

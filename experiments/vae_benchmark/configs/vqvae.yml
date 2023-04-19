@@ -1,0 +1,10 @@
+commitment_loss_factor:
+  -
+quantization_loss_factor:
+  -
+num_embeddings:
+  -
+use_ema:
+  -
+decay:
+  -
