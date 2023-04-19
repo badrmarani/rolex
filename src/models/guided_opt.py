@@ -127,7 +127,6 @@ class GuidedVAE(nn.Module):
                 m.train()
 
     @torch.no_grad()
-    @torch.jit.script
     def mutual_information(
         self,
         x: torch.Tensor,
@@ -174,7 +173,6 @@ class GuidedVAE(nn.Module):
         
         return log_mi_avg.exp()
 
-    @torch.jit.script
     def gradient_ascent_optimisation(
         self,
         x: torch.Tensor,
@@ -217,3 +215,4 @@ class GuidedVAE(nn.Module):
 
         xhat = self.decoder(z)
         return xhat, mu, logvar
+
