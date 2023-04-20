@@ -15,4 +15,5 @@ class BetaVAEConfig(VAEConfig):
         beta (float): The balancing factor. Default: 1
     """
 
-    beta: float = 1.0
+    # beta: float = 1.0
+    beta: float = 1e-3

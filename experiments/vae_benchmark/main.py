@@ -19,6 +19,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
+from sklearn.model_selection import train_test_split
+
+import numpy as np
+
 from utils import *
 
 warnings.filterwarnings("ignore")
@@ -73,7 +77,8 @@ def train_ray(model_configs):
     )
 
     trainer.train()
-    # writer.close()
+    save_sdmetrics(model, df.sample(1000), f"{name}_{training_signature}")
+    writer.close()
 
     del model
     del trainer
@@ -90,17 +95,28 @@ transform = transforms.Compose([
     transforms.Lambda(torch.flatten),
 ])
 
-fit = MNIST("tests/mnist/mnist/", train=True, download=True, transform=transform)
-val = MNIST("tests/mnist/mnist/", train=True, download=True, transform=transform)
-fit_dataset = BaseDataset(fit.data[:1000].flatten(1) / 255., torch.ones((fit.data[:1000].size(0))))
-val_dataset = BaseDataset(val.data[:1000].flatten(1) / 255., torch.ones((val.data[:1000].size(0))))
+# fit = MNIST("tests/mnist/mnist/", train=True, download=True, transform=transform)
+# val = MNIST("tests/mnist/mnist/", train=True, download=True, transform=transform)
+# fit_dataset = BaseDataset(fit.data[:1000].flatten(1) / 255., torch.ones((fit.data[:1000].size(0))))
+# val_dataset = BaseDataset(val.data[:1000].flatten(1) / 255., torch.ones((val.data[:1000].size(0))))
 
-inp_size = 28*28
+df = pd.read_csv("data/full_all_dataset_x.csv", sep=",")
+n_samples = df.shape[0]
+n_features = df.shape[1]
+fit_idx, val_idx = train_test_split(np.arange(0, n_samples, 1), shuffle=True)
+
+fit = torch.from_numpy(df.iloc[fit_idx, :].values).to(torch.float)
+val = torch.from_numpy(df.iloc[val_idx, :].values).to(torch.float)
+
+fit_dataset = BaseDataset(fit, torch.ones(n_samples,))
+val_dataset = BaseDataset(val, torch.ones(n_samples,))
+
+inp_size = n_features
 lat_size = 2
 emb_sizes = [inp_size//i for i in range(1, 4)]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-N_REPEATS = 10
+N_REPEATS = 1
 
 training_signature = str(datetime.datetime.now())[0:19].replace(" ", "_").replace(":", "-")
 path_name = "experiments/vae_benchmark/all_models_logs"
@@ -109,8 +125,8 @@ if os.path.exists(path_name):
     import shutil; shutil.rmtree(path_name) # DEBUG
 
 
-# output_dir = os.path.join(path_name, "tensorboard_"+training_signature)
-# os.makedirs(output_dir, exist_ok=True)
+output_dir = os.path.join(path_name, "tensorboard_"+training_signature)
+os.makedirs(output_dir, exist_ok=True)
 
 with open("experiments/vae_benchmark/models.txt", "r") as f:
     all_models = f.read().splitlines()
@@ -120,12 +136,13 @@ for rn in range(1, N_REPEATS+1):
 
     print("="*20, "REPEAT {}/{}".format(rn, N_REPEATS), "="*20)
     for name, config in zip(all_models[::2], all_models[1::2]):
-        # writer = SummaryWriter(log_dir=os.path.join(output_dir, name))
-        callbacks = [TBLogger()]
+        writer = SummaryWriter(log_dir=os.path.join(output_dir, name))
+        callbacks = [RayLogger()]
 
         print("Training {}...".format(name))
         with open("experiments/vae_benchmark/configs/{}.yml".format(name.lower()), "r") as stream:
             search_space = yaml.safe_load(stream)
+            search_space = None
 
         if search_space is not None:
             print(">>> Tuning {}'s hyperparameters...".format(name))
@@ -162,8 +179,7 @@ for rn in range(1, N_REPEATS+1):
             ), sep=";", float_format="%.8f")
 
         else:
-            continue
-            callbacks = None
+            callbacks = [TBLogger(writer)]
             train_ray(search_space)
 
     break
