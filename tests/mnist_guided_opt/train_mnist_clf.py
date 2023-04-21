@@ -1,7 +1,7 @@
 import os
 
 import torch
-from mnist_utils import AuxNetwork
+from mnist_utils import AuxNetwork, get_mnist_loaders
 from torch import nn
 from torch.utils import data
 from torchvision import transforms
@@ -18,31 +18,13 @@ args = {
 }
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-transform = transforms.Compose(
-    [
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)),
-        transforms.Lambda(torch.flatten),
-    ]
-)
-fit_loader = data.DataLoader(
-    dataset=MNIST(
-        "tests/mnist_guided_opt/mnist_dataset",
-        train=True,
-        download=True,
-        transform=transform,
-    ),
-    batch_size=args["batch_size"],
-    shuffle=True,
-)
-
+fit_loader, val_loader = get_mnist_loaders(args["batch_size"])
 
 net = AuxNetwork(args["inp_size"], args["emb_sizes"]).to(device)
 
 loss_fn = nn.NLLLoss()
 opt = torch.optim.Adam(net.parameters(), lr=args["lr"])
 
-# train
 net.train()
 for epoch in range(1, args["n_epochs"] + 1):
     running_loss = 0.0
@@ -67,19 +49,7 @@ for epoch in range(1, args["n_epochs"] + 1):
             )
 print("training finished.")
 
-# eval
 net.eval()
-val_loader = data.DataLoader(
-    dataset=MNIST(
-        "tests/mnist_guided_opt/mnist_dataset",
-        train=False,
-        download=True,
-        transform=transform,
-    ),
-    batch_size=args["batch_size"],
-    shuffle=True,
-)
-
 with torch.no_grad():
     correct = 0
     total = 0
@@ -115,7 +85,7 @@ with torch.no_grad():
 os.makedirs("tests/mnist_guided_opt/weights", exist_ok=True)
 torch.save(
     {
-        "state_dict": net.state_dict(),
+        "state_dict": net.to("cpu").state_dict(),
         "arguments": args,
     },
     "tests/mnist_guided_opt/weights/mnist_auxnet_weights.pkl",
