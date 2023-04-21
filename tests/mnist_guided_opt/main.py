@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 import yaml
-
+import os
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -96,16 +96,38 @@ for epoch in range(1, args["n_epochs"] + 1):
                     running_loss / args["log_interval"],
                 )
             )
-print("training finished.")
+            running_loss = 0.0
+    
+    with torch.no_grad():
+        grid_size = 20
+        step_size = 0.5
+        plt = plot_mutual_information(
+            model=guided_vae,
+            grid_size=grid_size,
+            step_size=step_size,
+            n_simulations=args["n_simulations"],
+            n_sampled_outcomes=args["n_sampled_outcomes"],
+            device=device,
+        )
+        
+        os.makedirs(args["save_imgs_path"], exist_ok=True)
+        os.makedirs("tests/mnist_guided_opt/weights/", exist_ok=True)
 
+        plt.savefig(
+            os.path.join(args["save_imgs_path"], "plot_mi_epoch_{}.jpg".format(epoch)),
+            dpi=300
+        )
 
-grid_size = 20
-step_size = 0.5
-plot_mutual_information(
-    model=guided_vae,
-    grid_size=grid_size,
-    step_size=step_size,
-    n_simulations=args["n_simulations"],
-    n_sampled_outcomes=args["n_sampled_outcomes"],
-    device=device,
-)
+        torch.save(
+            {
+                "state_dict": guided_vae.to("cpu").state_dict(),
+                "arguments": args,
+            },
+            "tests/mnist_guided_opt/weights/mnist_guided_vae_{}_weights.pkl".format(
+                epoch,
+            ),
+        )
+
+        guided_vae.to("cuda")
+
+print("training finished.") 
