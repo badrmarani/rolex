@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import torch
 from torch import nn
@@ -164,22 +164,35 @@ def plot_mutual_information(
 
 
 class AuxNetwork(nn.Module):
-    def __init__(self, inp_size: int, emb_sizes: List[int]) -> None:
+    def __init__(
+        self,
+        inp_size: int,
+        emb_sizes: Dict[str, List[int]],
+        add_dropouts: bool,
+    ) -> None:
         super().__init__()
 
-        seq = []
+        self.seq = nn.ModuleList()
         pre_emb_size = inp_size
-        for i, emb_size in enumerate(emb_sizes):
-            seq += [nn.Linear(pre_emb_size, emb_size)]
-            if i < len(emb_sizes) - 1:
-                seq += [nn.ReLU()]
+        for block in emb_sizes.values():
+            s = []
+            for i, n_features in enumerate(block):
+                s += [nn.Linear(pre_emb_size, n_features)]
+                if i < len(block) - 1:
+                    s += [nn.ReLU()]
 
-            pre_emb_size = emb_size
-        self.seq = nn.Sequential(*seq)
+                    if add_dropouts:
+                        s += [nn.Dropout(0.2)]
+
+                pre_emb_size = n_features        
+            s = nn.Sequential(*s)
+            self.seq.append(s)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.view(x.size(0), -1)
-        return torch.log_softmax(self.seq(x), dim=1)
+        out1 = self.seq[0](x)
+        out2 = self.seq[1](out1)
+        return torch.log_softmax(out2, dim=1)
 
 
 class Encoder(nn.Module):
@@ -193,7 +206,7 @@ class Encoder(nn.Module):
             pre_emb_size = emb_size
 
             if add_dropouts:
-                seq += [nn.Dropout(0.5)]
+                seq += [nn.Dropout(0.2)]
 
         self.seq = nn.Sequential(*seq)
 
@@ -220,7 +233,7 @@ class Decoder(nn.Module):
             if i < len(inv_emb_sizes) - 1:
                 seq += [nn.ReLU()]
                 if add_dropouts:
-                    seq += [nn.Dropout(0.5)]
+                    seq += [nn.Dropout(0.2)]
 
             pre_emb_size = emb_size
 
@@ -233,22 +246,20 @@ class Decoder(nn.Module):
 class GuidedVAE(nn.Module):
     def __init__(
         self,
-        inp_size: int,
-        emb_sizes: int,
-        lat_size: int,
+        encoder: nn.Module,
+        decoder: nn.Module,
         n_gradient_steps: int,
         n_simulations: int,
         n_sampled_outcomes: int,
         gradient_scale: float,
         uncertainty_threshold_value: float,
-        add_dropouts: bool,
         normalize_gradient: bool,
         aux_network: nn.Module,
     ) -> None:
         super().__init__()
 
-        self.encoder = Encoder(inp_size, emb_sizes, lat_size, add_dropouts)
-        self.decoder = Decoder(lat_size, emb_sizes, inp_size, add_dropouts)
+        self.encoder = encoder
+        self.decoder = decoder
         self.aux_network = aux_network
 
         self.n_gradient_steps = n_gradient_steps
@@ -302,10 +313,10 @@ class GuidedVAE(nn.Module):
                 gradient /= gradient.norm(2)
 
             updated_z = z + gradient * self.gradient_scale
-            mi = mutual_information_is(z)
+            mi = mutual_information_is(self, z)
 
             mask = mi <= self.uncertainty_threshold_value
-            mask = mask.unsqueeze(-1).repeat(1, 2)
+            mask = mask.unsqueeze(-1).repeat(1, z.size(-1))
             updated_z = torch.where(mask, updated_z, z)
 
         return updated_z

@@ -6,23 +6,23 @@ from torch import nn
 from torch.utils import data
 from torchvision import transforms
 from torchvision.datasets import MNIST
+import yaml
 
-log_interval = 100
 
-args = {
-    "n_epochs": 3,
-    "lr": 0.002,
-    "batch_size": 64,
-    "inp_size": 28 * 28,
-    "emb_sizes": [128, 64, 10],
-}
+with open("tests/mnist_guided_opt/mnist_configs.yml", "r") as stream:
+    args = yaml.safe_load(stream)
+    args["emb_sizes"]["vae"].append(args["lat_size"])
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 fit_loader, val_loader = get_mnist_loaders(args["batch_size"])
 
-net = AuxNetwork(args["inp_size"], args["emb_sizes"]).to(device)
+net = AuxNetwork(
+    args["inp_size"],
+    args["emb_sizes"],                 
+    args["add_dropouts"],
+).to(device)
 
-loss_fn = nn.NLLLoss()
+loss_fn = nn.CrossEntropyLoss()
 opt = torch.optim.Adam(net.parameters(), lr=args["lr"])
 
 net.train()
@@ -31,20 +31,20 @@ for epoch in range(1, args["n_epochs"] + 1):
     for i, batch in enumerate(fit_loader, 1):
         x, y = batch[0].to(device), batch[1].to(device)
         opt.zero_grad()
-        y_pred = net(x)
+        y_pred = net(x).squeeze(-1)
         loss = loss_fn(y_pred, y)
         loss.backward()
         opt.step()
 
         running_loss += loss.item()
-        if i % log_interval == log_interval - 1:
+        if i % args["log_interval"] == args["log_interval"] - 1:
             print(
                 "[{}/{}, {}/{}] running_loss: {:.3f}".format(
                     epoch,
                     args["n_epochs"],
                     i,
                     len(fit_loader),
-                    running_loss / log_interval,
+                    running_loss / args["log_interval"],
                 )
             )
 print("training finished.")

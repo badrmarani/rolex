@@ -1,0 +1,26 @@
+n_epochs: 3
+lr: 0.002
+batch_size: 128
+inp_size: 784
+training_log_interval: 10
+lat_size: 2
+beta: 1.0
+add_dropouts: true
+n_simulations: 10
+n_sampled_outcomes: 10
+n_gradient_steps: 10
+gradient_scale: 0.1
+normalize_gradient: true
+uncertainty_threshold_value: 1000
+aux_network_path: "tests/mnist_guided_opt/weights/mnist_auxnet_weights.pkl"
+log_interval: 1
+
+emb_sizes:
+  vae:
+    - 128
+    - 64
+    - 30
+  bloc2:
+    - 20
+    - 15
+    - 10
