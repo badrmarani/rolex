@@ -23,109 +23,86 @@ from sdv.metadata import SingleTableMetadata
 
 import pandas as pd
 import os
+import yaml
 
-output_dir = "experiments/vae_benchmark/all_models_logs"
-
-NUM_EPOCHS = 100
+dirname = "experiments/vae_benchmark"
+with open(os.path.join("training_config.yml"), "r") as stream:
+    args = yaml.safe_load(stream)
 
 training_base_config = BaseTrainerConfig(
-    no_cuda=True,
-    num_epochs=NUM_EPOCHS,
-    keep_best_on_train=True,
-    output_dir=output_dir,
-    per_device_train_batch_size=64,
-    per_device_eval_batch_size=64,
-    optimizer_cls="Adam",
-    learning_rate=1e-4,
-    optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    scheduler_cls="ReduceLROnPlateau",
-    scheduler_params={"patience": 5, "factor": 0.5}
+    no_cuda=args["no_cuda"],
+    num_epochs=args["n_epochs"],
+    keep_best_on_train=args["keep_best_on_train"],
+    output_dir=args["output_dir"],
+    per_device_train_batch_size=args["train_batch_size"],
+    per_device_eval_batch_size=args["train_batch_size"],
+    optimizer_cls=args["optimizer_name"],
+    learning_rate=args["lr"],
+    optimizer_params=args["optimizer_params"],
+    scheduler_cls=args["scheduler_name"],
+    scheduler_params=args["scheduler_params"]
 )
 
 adversarial_trainer_config = AdversarialTrainerConfig(
-no_cuda=True,
-    num_epochs=NUM_EPOCHS,
-    keep_best_on_train=True,
-    output_dir=output_dir,
-    per_device_train_batch_size=64,
-    per_device_eval_batch_size=64,
-    autoencoder_optimizer_cls="Adam",
-    autoencoder_learning_rate=1e-4,
-    autoencoder_optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    autoencoder_scheduler_cls="ReduceLROnPlateau",
-    autoencoder_scheduler_params={"patience": 5, "factor": 0.5},
-    discriminator_optimizer_cls="Adam",
-    discriminator_learning_rate=1e-4,
-    discriminator_optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    discriminator_scheduler_cls="ReduceLROnPlateau",
-    discriminator_scheduler_params={"patience": 5, "factor": 0.5}
+    no_cuda=args["no_cuda"],
+    num_epochs=args["n_epochs"],
+    keep_best_on_train=args["keep_best_on_train"],
+    output_dir=args["output_dir"],
+    per_device_train_batch_size=args["train_batch_size"],
+    per_device_eval_batch_size=args["train_batch_size"],
+    autoencoder_optimizer_cls=args["optimizer_name"],
+    autoencoder_learning_rate=args["lr"],
+    autoencoder_optimizer_params=args["optimizer_params"],
+    autoencoder_scheduler_cls=args["scheduler_name"],
+    autoencoder_scheduler_params=args["scheduler_params"],
+    discriminator_optimizer_cls=args["optimizer_name"],
+    discriminator_learning_rate=args["lr"],
+    discriminator_optimizer_params=args["optimizer_params"],
+    discriminator_scheduler_cls=args["scheduler_name"],
+    discriminator_scheduler_params=args["scheduler_params"]
 )
 
 coupled_optimizer_adversarial_trainer_config = CoupledOptimizerAdversarialTrainerConfig(
-    no_cuda=True,
-    num_epochs=NUM_EPOCHS,
-    keep_best_on_train=True,
-    output_dir=output_dir,
-    per_device_train_batch_size=64,
-    per_device_eval_batch_size=64,
-    encoder_optimizer_cls="Adam",
-    encoder_learning_rate=1e-4,
-    encoder_optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    encoder_scheduler_cls="ReduceLROnPlateau",
-    encoder_scheduler_params={"patience": 5, "factor": 0.5},
-    decoder_optimizer_cls="Adam",
-    decoder_learning_rate=1e-4,
-    decoder_optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    decoder_scheduler_cls="ReduceLROnPlateau",
-    decoder_scheduler_params={"patience": 5, "factor": 0.5},
-    discriminator_optimizer_cls="Adam",
-    discriminator_learning_rate=1e-4,
-    discriminator_optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    discriminator_scheduler_cls="ReduceLROnPlateau",
-    discriminator_scheduler_params={"patience": 5, "factor": 0.5}
+    no_cuda=args["no_cuda"],
+    num_epochs=args["n_epochs"],
+    keep_best_on_train=args["keep_best_on_train"],
+    output_dir=args["output_dir"],
+    per_device_train_batch_size=args["train_batch_size"],
+    per_device_eval_batch_size=args["eval_batch_size"],
+    encoder_optimizer_cls=args["optimizer_name"],
+    encoder_learning_rate=args["lr"],
+    encoder_optimizer_params=args["optimizer_params"],
+    encoder_scheduler_cls=args["scheduler_name"],
+    encoder_scheduler_params=args["scheduler_params"],
+    decoder_optimizer_cls=args["optimizer_name"],
+    decoder_learning_rate=args["lr"],
+    decoder_optimizer_params=args["optimizer_params"],
+    decoder_scheduler_cls=args["scheduler_name"],
+    decoder_scheduler_params=args["scheduler_params"],
+    discriminator_optimizer_cls=args["optimizer_name"],
+    discriminator_learning_rate=args["lr"],
+    discriminator_optimizer_params=args["optimizer_params"],
+    discriminator_scheduler_cls=args["scheduler_name"],
+    discriminator_scheduler_params=args["scheduler_params"]
 )
 
 coupled_optimizer_trainer_config = CoupledOptimizerTrainerConfig(
-    no_cuda=True,
-    num_epochs=NUM_EPOCHS,
-    keep_best_on_train=True,
-    output_dir=output_dir,
-    per_device_train_batch_size=64,
-    per_device_eval_batch_size=64,
-    encoder_optimizer_cls="Adam",
-    encoder_learning_rate=1e-4,
-    encoder_optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    encoder_scheduler_cls="ReduceLROnPlateau",
-    encoder_scheduler_params={"patience": 5, "factor": 0.5},
-    decoder_optimizer_cls="Adam",
-    decoder_learning_rate=1e-4,
-    decoder_optimizer_params={
-        "betas": (0.91, 0.995),
-        "weight_decay": 0.05,
-    },
-    decoder_scheduler_cls="ReduceLROnPlateau",
-    decoder_scheduler_params={"patience": 5, "factor": 0.5},
+    no_cuda=args["no_cuda"],
+    num_epochs=args["n_epochs"],
+    keep_best_on_train=args["keep_best_on_train"],
+    output_dir=args["output_dir"],
+    per_device_train_batch_size=args["train_batch_size"],
+    per_device_eval_batch_size=args["eval_batch_size"],
+    encoder_optimizer_cls=args["optimizer_name"],
+    encoder_learning_rate=args["lr"],
+    encoder_optimizer_params=args["optimizer_params"],
+    encoder_scheduler_cls=args["scheduler_name"],
+    encoder_scheduler_params=args["scheduler_params"],
+    decoder_optimizer_cls=args["optimizer_name"],
+    decoder_learning_rate=args["lr"],
+    decoder_optimizer_params=args["optimizer_params"],
+    decoder_scheduler_cls=args["scheduler_name"],
+    decoder_scheduler_params=args["scheduler_params"],
 )
 
 CONFIGS = {
@@ -158,75 +135,6 @@ class RayLogger(TrainingCallback):
     def on_epoch_end(self, training_config: BaseTrainerConfig, **kwargs):
         metrics = kwargs.pop("metrics")
         tune.report(eval_epoch_loss=metrics["eval_epoch_loss"])
-class Encoder(BaseEncoder):
-    def __init__(self, inp_size, emb_sizes, lat_size, mtype="base"):
-        BaseEncoder.__init__(self)
-
-        seq = []
-        for i, emb_size in enumerate(emb_sizes):
-            if not i:
-                seq += [
-                    nn.Linear(inp_size, emb_size), nn.ReLU(),
-                ]
-            else:
-                seq += [
-                    nn.Linear(pre_emb_size, emb_size), nn.ReLU(),
-                ]
-            pre_emb_size = emb_size
-        
-
-        self.seq = nn.Sequential(*seq)
-
-        self.embedding = nn.Linear(pre_emb_size, lat_size)
-
-        self.mtype = mtype
-        if self.mtype.lower() == "svae":
-            tout = 1
-        else:
-            tout = lat_size
-        
-        self.log_covariance = nn.Linear(pre_emb_size, tout)
-        
-    def forward(self, x: torch.Tensor) -> ModelOutput:
-        output = ModelOutput()
-
-        emb = self.seq(x)
-
-        output["embedding"] = self.embedding(emb)
-        if self.mtype.lower() == "svae":            
-            output["log_concentration"] = self.log_covariance(emb)
-        else:
-            output["log_covariance"] = self.log_covariance(emb)
-        return output
-
-
-class Decoder(BaseDecoder):
-    def __init__(self, lat_size, emb_sizes, out_size):
-        BaseDecoder.__init__(self)
-
-        emb_sizes = emb_sizes[::-1]
-
-        seq = []
-        for i, emb_size in enumerate(emb_sizes):
-            if not i:
-                seq += [
-                    nn.Linear(lat_size, emb_size), nn.ReLU(),
-                ]
-            else:
-                seq += [nn.Linear(pre_emb_size, emb_size)]
-                if i != len(emb_sizes)-1:
-                    seq += [nn.ReLU()]
-
-            pre_emb_size = emb_size
-        
-        self.reconstruction = nn.Sequential(*seq)
-        
-        
-    def forward(self, x: torch.Tensor) -> ModelOutput:
-        output = ModelOutput()
-
-        output["reconstruction"] = self.reconstruction(x)
-        return output
 
 def save_sdmetrics(model: BaseAE, dataset_x: pd.DataFrame, name):
     normal_sampler = NormalSampler(model)    
@@ -245,10 +153,10 @@ def save_sdmetrics(model: BaseAE, dataset_x: pd.DataFrame, name):
     quality_report.generate(dataset_x, df_sampled_x, metadata.to_dict())
     
     fig = quality_report.get_visualization(property_name="Column Shapes")
-    fig.write_image(os.path.join(output_dir, name + "_column_shapes.jpg"), width=800, height=800, scale=6)
+    fig.write_image(os.path.join(args["output_dir"], name + "_column_shapes.jpg"), width=800, height=800, scale=6)
 
     fig = quality_report.get_visualization(property_name="Column Pair Trends")
-    fig.write_image(os.path.join(output_dir, name + "_column_pair_trends.jpg"), width=800, height=800, scale=6)
+    fig.write_image(os.path.join(args["output_dir"], name + "_column_pair_trends.jpg"), width=800, height=800, scale=6)
 
 
     fig = utils.get_column_plot(
@@ -257,6 +165,6 @@ def save_sdmetrics(model: BaseAE, dataset_x: pd.DataFrame, name):
         column_name="data_054",
         metadata=metadata.to_dict(),
     )
-    fig.write_image(os.path.join(output_dir, name + "_get_column_plot.jpg"), width=800, height=800, scale=6)
+    fig.write_image(os.path.join(args["output_dir"], name + "_get_column_plot.jpg"), width=800, height=800, scale=6)
 
-    quality_report.save(os.path.join(output_dir, name + "quality_report.pkl"))
+    quality_report.save(os.path.join(args["output_dir"], name + "quality_report.pkl"))
