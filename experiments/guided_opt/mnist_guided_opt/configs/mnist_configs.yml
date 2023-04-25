@@ -1,10 +1,9 @@
-n_epochs: 20
+n_epochs: 10
 lr: 0.001
 batch_size: 128
 inp_size: 784
 training_log_interval: 10
 lat_size: 2
-beta: 0.0025
 add_dropouts: false
 p: 0.2
 n_simulations: 10
@@ -22,13 +21,15 @@ save_model_every_x_epochs: 1
 transform_data: false
 save_transformed_data: false
 dataset_already_saved: false
+loss_beta: 0.5
+device: "cuda"
 
 emb_sizes:
   vae:
     - 128
     - 64
     - 30
-  bloc2:
+  aux_net_bloc:
     - 20
     - 15
     - 10
