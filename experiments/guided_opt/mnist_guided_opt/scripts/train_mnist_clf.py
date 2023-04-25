@@ -1,5 +1,7 @@
 import sys
 import os
+abspath = os.path.normpath("experiments/guided_opt/mnist_guided_opt")
+sys.path.append(abspath)
 
 import torch
 from mnist_utils import AuxNetwork, GuidedVAE
@@ -12,7 +14,6 @@ from torchvision.datasets import MNIST
 import yaml
 
 
-abspath = os.path.normpath("experiments/guided_opt/mnist_guided_opt")
 args = yaml.safe_load(open(os.path.join(
     abspath,
     os.path.normpath("configs/mnist_configs.yml"),
@@ -171,5 +172,8 @@ torch.save(
     {
         "state_dict": aux_net.to("cpu").state_dict(),
     },
-    os.path.join(weights_dirname, os.path.normpath("mnist_aux_net_clf_weights.pkl")),
+    os.path.join(
+        weights_dirname,
+        os.path.normpath("mnist_aux_net_clf_weights.pkl")
+    ),
 )

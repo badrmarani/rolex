@@ -1,15 +1,18 @@
+import sys
+import os
+abspath = os.path.normpath("experiments/guided_opt/mnist_guided_opt")
+sys.path.append(abspath)
+
 import torch
 from torch import nn
 
 import yaml
-import os
 import matplotlib
 import matplotlib.pyplot as plt
 
 from mnist_utils import *
 from base import Encoder, Decoder
 
-abspath = os.path.normpath("experiments/guided_opt/mnist_guided_opt")
 args = yaml.safe_load(open(os.path.join(
     abspath,
     os.path.normpath("configs/mnist_configs.yml"),
