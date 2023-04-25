@@ -1,36 +1,32 @@
-import torch
-from torch import nn
+import warnings
+from pathlib import Path
 
 import numpy as np
-
+import torch
 from pythae.data.datasets import BaseDataset
-from pythae.models import BaseAE
-from pythae.models.nn import BaseEncoder, BaseDecoder
+from pythae.models import AutoModel, BaseAE
 from pythae.models.base.base_utils import ModelOutput
-from pythae.trainers.training_callbacks import MetricConsolePrinterCallback, TrainingCallback
-from pythae.trainers.base_trainer.base_training_config import BaseTrainerConfig
+from pythae.models.nn import BaseDecoder, BaseEncoder
 from pythae.samplers import NormalSampler
-from pythae.trainers import (
-    BaseTrainerConfig,
-    AdversarialTrainerConfig,
-    CoupledOptimizerAdversarialTrainerConfig,
-    CoupledOptimizerTrainerConfig,
-)
+from pythae.trainers import (AdversarialTrainerConfig, BaseTrainerConfig,
+                             CoupledOptimizerAdversarialTrainerConfig,
+                             CoupledOptimizerTrainerConfig)
+from pythae.trainers.base_trainer.base_training_config import BaseTrainerConfig
+from pythae.trainers.training_callbacks import (MetricConsolePrinterCallback,
+                                                TrainingCallback)
+from torch import nn
 
-import warnings
 warnings.filterwarnings("ignore")
 
-from ray import air, tune
-
-from sdmetrics.reports.single_table import QualityReport
-from sdv.metadata import SingleTableMetadata
-
-from sklearn.model_selection import train_test_split
+import datetime
+import os
 
 import pandas as pd
-import os
 import yaml
-import datetime
+from ray import air, tune
+from sdmetrics.reports.single_table import QualityReport
+from sdv.metadata import SingleTableMetadata
+from sklearn.model_selection import train_test_split
 
 training_signature = str(datetime.datetime.now())[0:19].replace(" ", "_").replace(":", "-")
 dirname = "experiments/vae_benchmark"
@@ -205,18 +201,6 @@ def get_dataset(filename: str, **kwargs):
         },
     }
 
-
-def get_stats_per_model(model: BaseAE, dataset: pd.DataFrame, name):
-    normal_sampler = NormalSampler(model)
-    fake_dataset = normal_sampler.sample(num_samples=dataset.shape[0])
-
-    nll = model.get_nll(model, dataset, n_samples=3)
-
-
-from pythae.models import AutoModel
-from pathlib import Path
-import numpy as np
-
 def get_stats(dirname: str, dataset, repeat_id):
     all_model_dir = [x for x in os.listdir(dirname) if not x.startswith("tensorboard")]
     for model_dir in all_model_dir:
@@ -235,9 +219,6 @@ def get_stats(dirname: str, dataset, repeat_id):
             model_name + f"_rep_{repeat_id}",
             model_name+"_quality_report.pkl",
         )
-        save_quality_report(trained_model, dataset, quality_report_save_path)
 
-# dirname = "experiments/vae_benchmark/all_models_logs"
-# dataset = get_dataset("data/fulldataset.csv", test_size=0.10, random_state=42)
-# eval = dataset["eval"]["pandas"]
-# get_stats(dirname, eval, 1)
+        print("Saving quality report of {}...".format(model_name.replace("_", " ")))
+        save_quality_report(trained_model, dataset, quality_report_save_path)
