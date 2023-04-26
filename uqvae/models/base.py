@@ -1,64 +1,67 @@
 import torch
 from torch import nn
 
+
 class Encoder(nn.Module):
-	def __init__(
-		self,
-		dropout: bool,
-		inp_size: int,
-		emb_size: int,
-		lat_size: int,
-	):
-		super(Encoder, self).__init__()
+    def __init__(
+        self,
+        data_dim,
+        compress_dims,
+        embedding_dim,
+        add_dropouts=False,
+        p=None,
+    ):
+        super().__init__()
 
-		hid_size = emb_size//2
-		encode = [
-			nn.Linear(inp_size, emb_size), nn.Tanh(),
-			nn.Linear(emb_size, hid_size), nn.Tanh(),
-			# nn.Linear(hid_size, emb_size//4), nn.Tanh(),
-			# nn.BatchNorm1d(emb_size//4),
-		]
+        seq = []
+        dim = data_dim
+        for item in compress_dims:
+            seq += [
+                nn.Linear(dim, item), 
+                nn.ReLU(),
+            ]
+            dim = item
 
-		if dropout:
-			drop = nn.Dropout(0.2)
-			encode.insert(2, drop)
-			encode.insert(5, drop)
-		self.encode = nn.Sequential(*encode)
+            if add_dropouts:
+                seq += [nn.Dropout(p)]
 
-		self.mu = nn.Linear(hid_size, lat_size)
-		self.logvar = nn.Linear(hid_size, lat_size)
+        self.seq = nn.Sequential(*seq)
+        self.fc1 = nn.Linear(dim, embedding_dim)
+        self.fc2 = nn.Linear(dim, embedding_dim)
 
-	def forward(self, tensor):
-		tmp = self.encode(tensor)
-		return (
-			self.mu(tmp),
-			self.logvar(tmp),
-		)
+    def forward(self, x: torch.Tensor):
+        embeddings = self.seq(x)
+        return (
+            self.fc1(embeddings),
+            self.fc2(embeddings),
+        )
 
 
 class Decoder(nn.Module):
-	def __init__(
-		self,
-		dropout: bool,
-		lat_size: int,
-		emb_size: int,
-		out_size: int,
-	):
-		super(Decoder, self).__init__()
+    def __init__(
+        self,
+        embedding_dim,
+        decompress_dims,
+        data_dim,
+        add_dropouts=False,
+        p=None
+    ):
+        super().__init__()
 
-		hid_size = emb_size//2
-		decode = [
-			nn.Linear(lat_size, hid_size), nn.Tanh(),
-			nn.Linear(hid_size, out_size), 
-			# nn.Tanh(),
-			# nn.BatchNorm1d(out_size),
-		]
+        seq = []
+        dim = embedding_dim
+        for item in decompress_dims:
+            seq += [
+                nn.Linear(dim, item), 
+                nn.ReLU(),
+            ]
+            dim = item
+            if add_dropouts:
+                seq += [nn.Dropout(p)]
 
-		if dropout:
-			drop = nn.Dropout(0.2)
-			decode.insert(2, drop)
+        seq.append(nn.Linear(dim, data_dim))
+        self.seq = nn.Sequential(*seq)
+        self.sigma = nn.Parameter(torch.ones(data_dim) * 0.1)
 
-		self.decode = nn.Sequential(*decode)
-
-	def forward(self, tensor):
-		return self.decode(tensor)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.seq(x), self.sigma

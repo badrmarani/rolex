@@ -3,6 +3,8 @@ from .condvae import CondVAE
 from .gp import GPVAE
 from .base import Encoder, Decoder
 
+from .vae_benchmark import *
+
 __all__ = [
     VAE,
     CondVAE,
