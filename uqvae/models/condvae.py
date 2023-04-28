@@ -1,60 +1,68 @@
 import torch
 from torch import nn
 
-from .base import Decoder
+from .base import Encoder, Decoder
 
 class CondVAE(nn.Module):
 	def __init__(
 		self,
-		inp_size: int,
-		emb_size: int,
-		lat_size: int,
+		data_dim,
+		compress_dims,
+		decompress_dims,
+		embedding_dim,
+		add_dropouts=False,
+		p=None,
 	):
-		super(CondVAE, self).__init__()     
-		self.encoder = CondEncoder(inp_size, emb_size, lat_size)
-		self.decoder = Decoder(lat_size, emb_size, inp_size)
-		self.fc = nn.Linear(1, lat_size)
+		super(CondVAE, self).__init__()
+		self.cond_encoder = CondEncoder(data_dim, compress_dims, embedding_dim, add_dropouts, p)
+		self.decoder = Decoder(embedding_dim, decompress_dims, data_dim)
+		self.fc = nn.Linear(1, embedding_dim)
 
-	def reparameterization(self, mu, logvar):
+	def rsample(self, mu, logvar):
 		std = logvar.mul(0.5).exp()
 		z = mu + std * torch.randn_like(std)
 		return z
 
-	def forward(self, tensor):
-		mu_z, logvar_z, mu_y, logvar_y = self.encoder(tensor)
+	def forward(self, x):
+		mu_z, logvar_z, mu_y, logvar_y = self.encoder(x)
 		
-		z = self.reparameterization(mu_z, logvar_z) # z ~ q(z|x)
-		y = self.reparameterization(mu_y, logvar_y)
-		zy = self.fc(y) # z ~ q(z|y) = N(zy, 1)
-		xhat = self.decoder(z)
+		z_given_x = self.rsample(mu_z, logvar_z) # z ~ q(z|x)
+		y = self.rsample(mu_y, logvar_y)
+		z_given_y = self.fc(y) # z ~ q(z|y) = N(zy, 1)
+		recon_x, sigma = self.decoder(z_given_x)
   
-		return xhat, mu_z, logvar_z, mu_y, logvar_y, z, zy
+		return recon_x, mu_z, logvar_z, mu_y, logvar_y, z_given_x, z_given_y, sigma
 
 
 class CondEncoder(nn.Module):
 	def __init__(
 		self,
-		inp_size: int,
-		emb_size: int,
-		lat_size: int,
+		data_dim,
+		compress_dims,
+		embedding_dim,
+		add_dropouts=False,
+		p=None,
 	):
-		super(CondEncoder, self).__init__()
-		self.encode = nn.Sequential(
-			nn.Linear(inp_size, emb_size), nn.Tanh(),
-			nn.Linear(emb_size, emb_size), nn.Tanh(),
+
+		super().__init__()
+
+		self.encoder = Encoder(
+			data_dim,
+			compress_dims,
+			embedding_dim,
+			add_dropouts,
+			p,
+			is_conditioned=True,
 		)
+		
+		self.fc1_z = nn.Linear(compress_dims[-1], embedding_dim)
+		self.fc2_z = nn.Linear(compress_dims[-1], embedding_dim)
+		self.fc1_y = nn.Linear(compress_dims[-1], 1)
+		self.fc2_y = nn.Linear(compress_dims[-1], 1)
 
-		self.mu_z = nn.Linear(emb_size, lat_size)
-		self.logvar_z = nn.Linear(emb_size, lat_size)
-
-		self.mu_y = nn.Linear(emb_size, 1)
-		self.logvar_y = nn.Linear(emb_size, 1)
-
-	def forward(self, tensor):
-		tmp = self.encode(tensor)
+	def forward(self, x):
+		x = self.encoder(x)
 		return (
-			self.mu_z(tmp),
-			self.logvar_z(tmp),
-			self.mu_y(tmp),
-			self.logvar_y(tmp),
+			self.fc1_z(x), self.fc1_z(x),
+			self.fc2_y(x), self.fc2_y(x),
 		)

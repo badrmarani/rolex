@@ -7,8 +7,6 @@ from .losses import ELBOLoss
 import pandas as pd
 
 
-
-
 def train_one_epoch(
     epoch,
     model,

@@ -5,12 +5,10 @@ from torch import nn, distributions
 class CondELBOLoss(nn.Module):
 	def __init__(self):
 		super().__init__()
-		
-		self.log_scale = nn.Parameter(
-			torch.zeros((1,)),
-			requires_grad=True
-		)
-		
+
+    def nll_gaussian(self, x, x_recon)
+        pass
+
 	def gaussian_likelihood(
 		self,
 		input,

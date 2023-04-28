@@ -1,6 +1,41 @@
 import torch
 from torch import nn
 
+class BaseVAE(nn.Module):
+    def __init__(self):
+        super(BaseVAE, self).__init__()
+
+    def rsample(self, mu, logvar):
+        std = logvar.mul(0.5).exp()
+        return mu + std * torch.randn_like(std) 
+    
+    @torch.no_grad()
+    def reconstruct(self, x):
+        self.encoder.eval()
+        self.decoder.eval()
+        z = self.rsample(*self.encoder(x))
+        recon_x, sigmas = self.decoder(z)
+        return recon_x, sigmas
+
+    @torch.no_grad()
+    def generate(self, n_samples, device, batch_size=32):
+        self.decoder.eval()
+
+        data = []
+        steps = n_samples // batch_size + 1
+        for _ in range(steps):
+            mean = torch.zeros(batch_size, self.embedding_dim)
+            z = torch.normal(mean=mean, std=mean+1).to(device)
+            recon_x, sigmas = self.decoder(z)
+            recon_x = torch.tanh(recon_x)
+            data.append(recon_x.detach().cpu().numpy())
+
+        data = torch.concatenate(data, axis=0)[:n_samples]
+        return data
+
+    def loss_function(self):
+        raise NotImplementedError
+
 
 class Encoder(nn.Module):
     def __init__(
@@ -10,8 +45,10 @@ class Encoder(nn.Module):
         embedding_dim,
         add_dropouts=False,
         p=None,
+        is_conditioned=False,
     ):
-        super().__init__()
+        super(Encoder, self).__init__()
+
 
         seq = []
         dim = data_dim
@@ -25,9 +62,11 @@ class Encoder(nn.Module):
             if add_dropouts:
                 seq += [nn.Dropout(p)]
 
+        self.dim = dim
         self.seq = nn.Sequential(*seq)
-        self.fc1 = nn.Linear(dim, embedding_dim)
-        self.fc2 = nn.Linear(dim, embedding_dim)
+        if not is_conditioned:
+            self.fc1 = nn.Linear(self.dim, embedding_dim)
+            self.fc2 = nn.Linear(self.dim, embedding_dim)
 
     def forward(self, x: torch.Tensor):
         embeddings = self.seq(x)
@@ -44,9 +83,10 @@ class Decoder(nn.Module):
         decompress_dims,
         data_dim,
         add_dropouts=False,
-        p=None
+        p=None,
+        **kwargs,
     ):
-        super().__init__()
+        super(Decoder, self).__init__()
 
         seq = []
         dim = embedding_dim
@@ -61,7 +101,7 @@ class Decoder(nn.Module):
 
         seq.append(nn.Linear(dim, data_dim))
         self.seq = nn.Sequential(*seq)
-        self.sigma = nn.Parameter(torch.ones(data_dim) * 0.1)
+        self.logsigma = nn.Parameter(torch.ones(data_dim) * (-2.3))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.seq(x), self.sigma
+        return self.seq(x), self.logsigma
