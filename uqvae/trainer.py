@@ -1,10 +1,12 @@
 import torch
 from torch import nn
 from torch.utils import data
+from torch.utils import tensorboard
 
 from uqvae.models import BaseVAE
 
 import numpy as np
+import copy
 import random
 
 from tqdm import tqdm
@@ -37,17 +39,19 @@ class Trainer:
         np.random.seed(worker_seed)
         random.seed(worker_seed)
 
-    def set_optimizer(self, initial_lr:float=1e-5):
+    def set_optimizer(self, **kwargs):
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
-            lr=initial_lr,
+            **kwargs,
         )
     
-    def set_scheduler(self, step=1, gamma=0.5):
+    def set_scheduler(self, step=1, gamma=1):
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step, gamma)
 
     def fit(self, dataset:data.Dataset, fit_idx, val_idx, batch_size=32, epochs=30):
         self.model = self.model.to(self.device)
+
+        self.writer = tensorboard.SummaryWriter(self.logdir)
 
         fit_loader = data.DataLoader(
             dataset,
@@ -58,7 +62,6 @@ class Trainer:
             drop_last=True,
         )
 
-        print(fit_loader.dataset)
 
         val_loader = data.DataLoader(
             dataset,
@@ -71,7 +74,11 @@ class Trainer:
 
         best_loss = -1
         for epoch in range(1, epochs+1):
-            print("\nepoch {}/{}".format(epoch, epochs))
+            print("\n{} - epoch {}/{}".format(
+                self.logdir.split("/")[-1],
+                epoch,
+                epochs
+            ))
 
             fit_batch_count = len(fit_idx)//batch_size
             fit_batch = tqdm(enumerate(fit_loader), total=fit_batch_count)
@@ -81,39 +88,48 @@ class Trainer:
                 self.optimizer.zero_grad()
                 loss, rec_loss, kld_loss = self.step(batch)
 
-                regul = self.lambda_regul * RegulWeights(self.model) / fit_batch_count
-                loss += regul
+                # regul = self.lambda_regul * RegulWeights(self.model) / fit_batch_count
+                # loss += regul
 
                 loss.backward()
                 self.optimizer.step()
 
                 total_loss += loss.item()/fit_batch_count
-                total_regul += regul
+                # total_regul += regul
+                fit_batch.set_postfix({"loss": "{:.4f}".format(total_loss)}, refresh=True)
+                fit_batch.set_description(f"fit")
 
             with torch.no_grad():
                 val_batch_count = len(val_idx)//batch_size
                 val_batch = tqdm(enumerate(val_loader), total=val_batch_count)
+                val_batch.set_description(f"val")
 
                 total_val_loss = 0.0
                 for i, batch in val_batch:
                     loss, rec_loss, kld_loss = self.step(batch)
                     total_val_loss += loss.item()/val_batch_count
+                    val_batch.set_postfix({"loss": "{:.4f}".format(total_val_loss)}, refresh=True)
 
             if best_loss == -1 or total_val_loss < best_loss:
                 best_loss = total_val_loss
                 torch.save(
-                    self.model.to("cpu").state_dict(),
+                    {
+                        "model": copy.deepcopy(self.model).to("cpu").state_dict(),
+                        "configs": self.model.configs,
+                    },
                     os.path.join(
-                        self.logdir, "{}_best_{}_epoch_{}_.pkl".format(
-                            self.model.__class__.__name__,
-                            best_loss,
-                            epoch,
+                        self.logdir, "best_{}.pkl".format(
+                            self.logdir.split("/")[-1].lower(),
                         )
                     )
                 )
+
             if self.scheduler:
                 self.scheduler.step()
 
+            self.writer.add_scalar("loss/fit", total_loss, epoch)
+            self.writer.add_scalar("loss/val", total_val_loss, epoch)
+        self.writer.close()
 
     def step(self, batch):
         x, y = (
@@ -121,11 +137,10 @@ class Trainer:
             batch[1].to(self.device),
         )
 
-
-        print(x.size())
-        recon_x, logsigma, mu, logvar = self.model(x)
+        recon_x, log_scale, mu, logvar = self.model(x)
         loss, rec_loss, kld_loss = self.model.loss_function(
-            recon_x, x, logsigma, mu, logvar
+            recon_x, x, mu, logvar, log_scale
         )
+
 
         return loss, rec_loss, kld_loss

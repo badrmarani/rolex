@@ -101,7 +101,6 @@ class Decoder(nn.Module):
 
         seq.append(nn.Linear(dim, data_dim))
         self.seq = nn.Sequential(*seq)
-        self.logsigma = nn.Parameter(torch.ones(data_dim) * (-2.3))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.seq(x), self.logsigma
+        return self.seq(x)
