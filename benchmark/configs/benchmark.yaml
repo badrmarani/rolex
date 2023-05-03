@@ -1,0 +1,41 @@
+dataset:
+  filename: data/fulldataset.csv
+  preprocess_dataset: false
+  preprocessed_dataset_path: data/janus_dataset_cat_2_ns.pkl
+  save_preprocessed_dataset_path: null
+  n_classes_allowed: 2
+
+
+batch_size: 64
+epochs: 2
+device: cuda
+
+compress_dims:
+  - 128
+  - 128
+decompress_dims:
+  - 128
+  - 128
+embedding_dim: 10
+
+models:
+  - uqvae.models.vae.VAE
+  - uqvae.models.pythae.VAMP_
+
+encoder: 
+  module: uqvae.models.base.Encoder
+
+decoder:
+  module: uqvae.models.base.Decoder
+
+logdir: results/logs/
+
+defaults:
+  - _self_  
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .

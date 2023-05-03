@@ -14,8 +14,8 @@ class BaseVAE(nn.Module):
         self.encoder.eval()
         self.decoder.eval()
         z = self.rsample(*self.encoder(x))
-        recon_x, sigmas = self.decoder(z)
-        return recon_x, sigmas
+        recon_x = self.decoder(z)
+        return recon_x
 
     @torch.no_grad()
     def generate(self, n_samples, device, batch_size=32):
@@ -26,14 +26,14 @@ class BaseVAE(nn.Module):
         for _ in range(steps):
             mean = torch.zeros(batch_size, self.embedding_dim)
             z = torch.normal(mean=mean, std=mean+1).to(device)
-            recon_x, sigmas = self.decoder(z)
+            recon_x = self.decoder(z)
             recon_x = torch.tanh(recon_x)
             data.append(recon_x.detach().cpu().numpy())
 
         data = torch.concatenate(data, axis=0)[:n_samples]
         return data
 
-    def loss_function(self):
+    def get_loss(self):
         raise NotImplementedError
 
 

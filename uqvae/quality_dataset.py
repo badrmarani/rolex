@@ -48,12 +48,12 @@ class JanusDataset(data.Dataset):
 
         self.device = device
         self.dataset = dataset
-        self.n_samples, self.n_features = self.dataset.shape
+        _, self.n_features = self.dataset.shape
         self.n_features -= 2
 
         df_x = self.dataset.iloc[:, :-2]
         if preprocess_dataset:
-            print("Transforming Janus data...", end=" ")
+            print("\t+ Transforming Janus data...", end=" ")
             self.transformer = DataTransformer()
             print("Fit...", end=" ")
             tmp = df_x.sample(50, axis=0)
@@ -65,8 +65,9 @@ class JanusDataset(data.Dataset):
             self.n_features = self.transformer.output_dimensions
 
         else:
-            self.x = torch.from_numpy(df_x.values).to(self.device)
-        self.y = torch.from_numpy(self.dataset.iloc[:, -2:].sample(50, axis=0).values).to(self.device)
+            self.x = torch.from_numpy(df_x.values.astype("float32")).to(self.device)
+        self.y = torch.from_numpy(self.dataset.iloc[:, -2:].values.astype("float32")).to(self.device)
+        self.n_samples = self.x.shape[0]
 
     def __len__(self):
         return self.n_samples
