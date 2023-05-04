@@ -30,7 +30,7 @@ class JanusDataset(data.Dataset):
     def __getitem__(self, index):
         return DatasetOutput(
             data=self.x[index],
-            target=self.y[index],
+            # target=self.y[index],
         )
 
     def split(self, **kwargs):

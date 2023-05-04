@@ -1,0 +1,1 @@
+{"name": "BaseTrainerConfig", "output_dir": "VAMP", "batch_size": 64, "num_epochs": 5, "learning_rate": 0.001, "steps_saving": null, "steps_predict": 100, "no_cuda": false}

@@ -8,8 +8,10 @@ hydra:
   run:  
     dir: .
 
-device: cpu
+no_cuda: false
 
+lr: 1e-3
+steps_predict: 100
 n_epochs: 5
 batch_size: 64
 compress_dims:
@@ -22,7 +24,13 @@ dataset:
   root: ../data/fulldataset.csv
   n_classes_allowed: 2
 
-training_config: configs/training_config.yaml
+training_configs:
+  module:
+    - src.pythae.trainers.BaseTrainerConfig
+    - src.pythae.trainers.AdversarialTrainerConfig
+  root:
+    - configs/base_training_config.json
+    - configs/adv_training_config.json
 
 models:
   - src.pythae.models.VAE
@@ -35,9 +43,9 @@ models:
   - src.pythae.models.BetaTCVAE
   - src.pythae.models.FactorVAE
   - src.pythae.models.INFOVAE_MMD
-  - src.pythae.models.Adversarial_AE
+  # - src.pythae.models.Adversarial_AE
   - src.pythae.models.MSSSIM_VAE
-  - src.pythae.models.VAEGAN
+  # - src.pythae.models.VAEGAN
 
 model_configs:
   module:
@@ -51,20 +59,20 @@ model_configs:
     - src.pythae.models.BetaTCVAEConfig
     - src.pythae.models.FactorVAEConfig
     - src.pythae.models.INFOVAE_MMD_Config
-    - src.pythae.models.Adversarial_AE_Config
-    - src.pythae.models.MSSSIM_VAE_Config
-    - src.pythae.models.VAEGANConfig
+    # - src.pythae.models.Adversarial_AE_Config
+    - src.pythae.models.MSSSIM_VAEConfig
+    # - src.pythae.models.VAEGANConfig
   root:
-    - configs/model_configs/vae_config.yaml
-    - configs/model_configs/vamp_config.yaml
-    - configs/model_configs/iwae_config.yaml
-    - configs/model_configs/vae_lin_nf_config.yaml
-    - configs/model_configs/vae_iaf_config.yaml
-    - configs/model_configs/beta_vae_config.yaml
-    - configs/model_configs/disentangled_beta_vae_config.yaml
-    - configs/model_configs/beta_tc_vae_config.yaml
-    - configs/model_configs/factor_vae_config.yaml
-    - configs/model_configs/info_vae_config.yaml
-    - configs/model_configs/aae_config.yaml
-    - configs/model_configs/msssim_vae_config.yaml
-    - configs/model_configs/vaegan_config.yaml
+    - configs/model_configs/vae_config.json
+    - configs/model_configs/vamp_config.json
+    - configs/model_configs/iwae_config.json
+    - configs/model_configs/vae_lin_nf_config.json
+    - configs/model_configs/vae_iaf_config.json
+    - configs/model_configs/beta_vae_config.json
+    - configs/model_configs/disentangled_beta_vae_config.json
+    - configs/model_configs/beta_tc_vae_config.json
+    - configs/model_configs/factor_vae_config.json
+    - configs/model_configs/info_vae_config.json
+    # - configs/model_configs/aae_config.json
+    - configs/model_configs/msssim_vae_config.json
+    # - configs/model_configs/vaegan_config.json
