@@ -105,7 +105,7 @@ class Benchmark():
                 training_config = self.configure_training_config(model.model_name)
                 pipeline = TrainingPipeline(training_config=training_config, model=model)
 
-                pipeline(train_data=(self.train,), eval_data=(self.val,))
+                pipeline(self.train[0], self.val[0])
 
                 if not j and model.__class__.__name__ == "VAE":
                     break

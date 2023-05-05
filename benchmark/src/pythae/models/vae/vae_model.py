@@ -5,6 +5,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from torch import nn
+
 from ...data.datasets import BaseDataset
 from ..base import BaseAE
 from ..base.base_utils import ModelOutput
@@ -40,9 +42,14 @@ class VAE(BaseAE):
         model_config: VAEConfig,
         encoder: Optional[BaseEncoder] = None,
         decoder: Optional[BaseDecoder] = None,
+        categorical_columns = None,
+        output_info = None,
     ):
 
         BaseAE.__init__(self, model_config=model_config, decoder=decoder)
+
+        self.categorical_columns = categorical_columns
+        self.output_info = output_info
 
         self.model_name = "VAE"
 
@@ -97,23 +104,67 @@ class VAE(BaseAE):
 
         return output
 
+    # def reconstruction_loss(self, recon_x, x):
+    #     if self.model_config.reconstruction_loss == "mse":
+    #         recon_loss = F.mse_loss(
+    #             recon_x.reshape(x.shape[0], -1),
+    #             x.reshape(x.shape[0], -1),
+    #             reduction="none",
+    #         ).sum(dim=-1)
+
+    #     elif self.model_config.reconstruction_loss == "bce":
+    #         recon_loss = F.binary_cross_entropy(
+    #             recon_x.reshape(x.shape[0], -1),
+    #             x.reshape(x.shape[0], -1),
+    #             reduction="none",
+    #         ).sum(dim=-1)
+    #     return recon_loss
+
+    # def reconstruction_loss(self, recon_x, x):
+    #     if self.categorical_columns is None:
+    #         rec_loss = nn.functional.mse_loss(
+    #             torch.tanh(recon_x),
+    #             x,
+    #             reduction="none",
+    #         ).sum(dim=-1)
+    #     else:
+    #         non_categorical_columns = [i for i in range(
+    #             x.size(-1)) if i not in self.categorical_columns]
+    #         rec_loss = nn.functional.mse_loss(
+    #             recon_x[:, non_categorical_columns],
+    #             x[:, non_categorical_columns],
+    #             reduction="none",
+    #         ).sum(dim=-1)
+
+    #         rec_loss += nn.functional.binary_cross_entropy(
+    #             torch.softmax(recon_x[:, self.categorical_columns], dim=-1),
+    #             x[:, self.categorical_columns],
+    #             reduction="none",
+    #         ).sum(dim=-1)
+    #     return rec_loss
+
+    def reconstruction_loss(self, recon_x, x):
+        st = 0
+        loss = []
+        for column_info in self.output_info:
+            for span_info in column_info:
+                if span_info.activation_fn != 'softmax':
+                    ed = st + span_info.dim
+                    std = torch.tensor(1.0)
+                    eq = x[:, st] - torch.tanh(recon_x[:, st])
+                    loss.append((eq ** 2 / 2 / (std ** 2)).sum())
+                    loss.append(torch.log(std) * x.size()[0])
+                    st = ed
+
+                else:
+                    ed = st + span_info.dim
+                    loss.append(nn.functional.cross_entropy(
+                        recon_x[:, st:ed], torch.argmax(x[:, st:ed], dim=-1), reduction='sum'))
+                    st = ed
+        return sum(loss)
+
     def loss_function(self, recon_x, x, mu, log_var, z):
-
-        if self.model_config.reconstruction_loss == "mse":
-
-            recon_loss = F.mse_loss(
-                recon_x.reshape(x.shape[0], -1),
-                x.reshape(x.shape[0], -1),
-                reduction="none",
-            ).sum(dim=-1)
-
-        elif self.model_config.reconstruction_loss == "bce":
-
-            recon_loss = F.binary_cross_entropy(
-                recon_x.reshape(x.shape[0], -1),
-                x.reshape(x.shape[0], -1),
-                reduction="none",
-            ).sum(dim=-1)
+        recon_loss = self.reconstruction_loss(recon_x, x)
 
         KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=-1)
 
