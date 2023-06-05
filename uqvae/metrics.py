@@ -1,7 +1,37 @@
 import torch
+from sdmetrics.reports.single_table import QualityReport
+from sdv.metadata import SingleTableMetadata
 from tqdm import trange
 
 from .utils import reproduce
+
+
+@torch.no_grad()
+def generate_synthetic_data(model, n_samples, embedding_dim, data_transformer, device):
+    noise = torch.randn(n_samples, embedding_dim, device=device, dtype=torch.float32)
+    pxz = model.decoder(noise)
+    sigmas = model.decoder.logvar.mul(0.5).exp().cpu().numpy()
+    fake = pxz.loc.cpu().numpy()
+    fake = data_transformer.inverse_transform(fake, sigmas=sigmas)
+    return fake
+
+
+def make_quality_report(real, fake):
+    metadata = SingleTableMetadata()
+    metadata.detect_from_dataframe(real)
+
+    report = QualityReport()
+    report.generate(real.astype("float32"), fake.astype("float32"), metadata.to_dict())
+
+    return report, metadata
+
+
+def sdmetrics_wrapper(real, fake, metric):
+    score = 0.0
+    for column in real.columns:
+        score += metric.compute(real_data=real[column], synthetic_data=fake[column])
+    score /= len(real.columns)
+    return score
 
 
 def enable_dropout(model):
@@ -25,7 +55,8 @@ def mutual_information(
     n_sampled_outcomes,
     verbose=True,
 ):
-    decoder.train()
+    decoder.eval()
+    enable_dropout(decoder)
     log_mi = []
     if verbose:
         mrange = trange(1, n_simulations + 1, desc=f"mutual_information")
