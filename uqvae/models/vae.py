@@ -8,10 +8,7 @@ class Encoder(nn.Module):
         dim = data_dim
         seq = []
         for item in list(compress_dims):
-            seq += [
-                nn.Linear(dim, item),
-                nn.ReLU()
-            ]
+            seq += [nn.Linear(dim, item), nn.ReLU()]
             dim = item
 
         self.seq = nn.Sequential(*seq)
@@ -26,7 +23,7 @@ class Encoder(nn.Module):
         normal.loc = normal.loc.to(x)
         normal.scale = normal.scale.to(x)
         return normal
-        
+
 
 class Decoder(nn.Module):
     def __init__(self, embedding_dim, decompress_dims, data_dim):
@@ -46,13 +43,14 @@ class Decoder(nn.Module):
         normal.loc = normal.loc.to(x)
         normal.scale = normal.scale.to(x)
         return normal
-        
+
+
 class VAE(nn.Module):
     def __init__(self, encoder, decoder):
         super(VAE, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
-    
+
     def forward(self, x):
         qzx = self.encoder(x)
         z = qzx.rsample()
