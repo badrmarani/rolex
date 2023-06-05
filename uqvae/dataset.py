@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 from torch.utils import data
-from utils import reproduce
+from .utils import reproduce
 
 
 def split_dataset(df: pd.DataFrame):
@@ -15,6 +15,7 @@ def split_dataset(df: pd.DataFrame):
         df.loc[:, "data_000":"data_135"],  # production params
         df.loc[:, "data_136":"data_196"],  # contextual params
         df.loc[:, "data_197":"data_211"],  # subs. quality properties
+        df.loc[:, "target_000":"target_001"],
     )
 
 
@@ -40,3 +41,11 @@ def make_loader(dataset: np.array, seed: int = 42, shuffle: bool = False):
     )
 
     return loader
+
+
+def load(filename: str):
+    dataset = pd.read_csv(filename, sep=",", index_col=0)
+    dataset.drop(columns=["ROW_ID"], inplace=True)
+    dataset = split_dataset(dataset)
+    dataset[1].drop(columns=["data_172", "data_173"], inplace=True)
+    return dataset
