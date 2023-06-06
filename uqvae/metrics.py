@@ -3,7 +3,7 @@ from sdmetrics.reports.single_table import QualityReport
 from sdv.metadata import SingleTableMetadata
 from tqdm import trange
 
-from .utils import reproduce
+from .utils import reproduce, lde, enable_dropout
 
 
 @torch.no_grad()
@@ -32,18 +32,6 @@ def sdmetrics_wrapper(real, fake, metric):
         score += metric.compute(real_data=real[column], synthetic_data=fake[column])
     score /= len(real.columns)
     return score
-
-
-def enable_dropout(model):
-    for m in model.modules():
-        if m.__class__.__name__.startswith("Dropout"):
-            m.train()
-
-
-def lde(log_a, log_b):
-    max_log = torch.max(log_a, log_b)
-    min_log = torch.min(log_a, log_b)
-    return max_log + torch.log(1 + torch.exp(min_log - max_log))
 
 
 @torch.no_grad()
