@@ -1,19 +1,70 @@
+import numpy as np
+import pandas as pd
 import torch
 from sdmetrics.reports.single_table import QualityReport
 from sdv.metadata import SingleTableMetadata
 from tqdm import trange
 
-from .utils import reproduce, lde, enable_dropout
+from .utils import enable_dropout, lde, reproduce
 
 
-@torch.no_grad()
-def generate_synthetic_data(model, n_samples, embedding_dim, data_transformer, device):
-    noise = torch.randn(n_samples, embedding_dim, device=device, dtype=torch.float32)
-    pxz = model.decoder(noise)
-    sigmas = model.decoder.logvar.mul(0.5).exp().cpu().numpy()
-    fake = pxz.loc.cpu().numpy()
-    fake = data_transformer.inverse_transform(fake, sigmas=sigmas)
-    return fake
+def emp_boundary_adherence(fake, scaler_path: str):
+    scaler = pd.read_pickle(scaler_path)
+    scaler_info = pd.DataFrame(
+        data=np.vstack(
+            (
+                scaler.mean_.reshape(1, -1),
+                scaler.scale_.reshape(1, -1),
+            )
+        ).reshape(2, -1),
+        columns=scaler.feature_names_in_,
+        index=["mean", "scale"],
+    )
+
+    scaler_info = scaler_info[
+        [
+            "ZGFM_1400_TEMPSCP1",
+            "ZGFM_1403_TEMPSCP2",
+            "ZGFM_1406_TEMPSCP3",
+            "ZGFM_1420_TEMPSMP1",
+            "ZGFM_1423_TEMPSMP2",
+            "ZGFM_1426_TEMPSMP3",
+        ]
+    ]
+    scaler_info = torch.from_numpy(scaler_info.values.astype("float32"))
+
+    fake = torch.from_numpy(
+        fake[
+            ["data_034", "data_037", "data_040", "data_043", "data_046", "data_049"]
+        ].values.astype("float32")
+    )
+    fake = fake * scaler_info[1, :] + scaler_info[0, :]
+
+    valid1 = torch.where(
+        torch.logical_and(fake[:, 0] <= fake[:, 1], fake[:, 1] <= fake[:, 2]), 1.0, 0.0
+    )
+    valid2 = torch.where(
+        torch.logical_and(fake[:, 3] <= fake[:, 4], fake[:, 4] <= fake[:, 5]), 1.0, 0.0
+    )
+    return (valid1 + valid2) / 2
+
+
+def boundary_adherence(
+    fake_tensor: torch.Tensor,
+    real_production_dataset: pd.DataFrame,
+):
+    real_production_dataset = torch.from_numpy(
+        real_production_dataset.describe().T[["min", "max"]].T.values.astype("float32")
+    )
+    valid = torch.where(
+        torch.logical_and(
+            real_production_dataset[0, :] <= fake_tensor,
+            fake_tensor <= real_production_dataset[1, :],
+        ),
+        1.0,
+        0.0,
+    )
+    return valid.mean(dim=-1)
 
 
 def make_quality_report(real, fake):
