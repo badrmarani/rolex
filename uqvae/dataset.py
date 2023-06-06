@@ -10,6 +10,16 @@ from torch.utils import data
 from .utils import reproduce
 
 
+@torch.no_grad()
+def generate_synthetic_data(model, n_samples, embedding_dim, data_transformer, device):
+    noise = torch.randn(n_samples, embedding_dim, device=device, dtype=torch.float32)
+    pxz = model.decoder(noise)
+    sigmas = model.decoder.logvar.mul(0.5).exp().cpu().numpy()
+    fake = pxz.loc.cpu().numpy()
+    fake = data_transformer.inverse_transform(fake, sigmas=sigmas)
+    return fake
+
+
 def split_dataset(df: pd.DataFrame):
     return (
         df.loc[:, "data_000":"data_135"],  # production params
