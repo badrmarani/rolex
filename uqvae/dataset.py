@@ -15,7 +15,8 @@ from .utils import reproduce
 warnings.filterwarnings("ignore")
 
 NUM_WORKERS = 0
-
+GENERATOR = torch.Generator()
+GENERATOR.manual_seed(42)
 
 @torch.no_grad()
 def generate_synthetic_data(model, n_samples, embedding_dim, data_transformer, device):
@@ -99,7 +100,7 @@ class JANUSDataModule(pl.LightningDataModule):
         if self.transform_data:
             print("Transform data")
             self.data_transformer = DataTransformer()
-            self.data_transformer.fit(self.data_train)
+            self.data_transformer.fit(self.data_train, ())
             self.data_train = torch.from_numpy(
                 self.data_transformer.transform(self.data_train).astype("float32")
             )
@@ -142,7 +143,9 @@ class JANUSDataModule(pl.LightningDataModule):
             self.train_dataset,
             batch_size=self.batch_size,
             num_workers=NUM_WORKERS,
-            drop_last=True,
+            shuffle=False,
+            worker_init_fn=reproduce,
+            generator=GENERATOR,
         )
 
     def val_dataloader(self):
@@ -150,5 +153,8 @@ class JANUSDataModule(pl.LightningDataModule):
             self.val_dataset,
             batch_size=self.batch_size,
             num_workers=NUM_WORKERS,
-            drop_last=True,
+            shuffle=False,
+            worker_init_fn=reproduce,
+            generator=GENERATOR,
         )
+        

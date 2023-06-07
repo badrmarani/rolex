@@ -45,17 +45,21 @@ def main():
                 LearningRateMonitor(logging_interval="epoch"),
             ],
             enable_progress_bar=True,
+            num_sanity_val_steps=0,
         )
 
     trainer.fit(model, datamodule=datamodule)
-    print(
-        f"Training finished; end of script: rename {checkpoint_callback.best_model_path}"
-    )
+    print(f"Training finished; end of script: rename {checkpoint_callback.best_model_path}")
     shutil.copyfile(
         checkpoint_callback.best_model_path,
         os.path.join(os.path.dirname(checkpoint_callback.best_model_path), "best.ckpt"),
     )
 
+    print("Save the DataTransformer")
+    torch.save(
+        datamodule.data_transformer,
+        os.path.join(os.path.dirname(checkpoint_callback.best_model_path), "data_transformer.ckpt"),
+    )
 
 if __name__ == "__main__":
     main()

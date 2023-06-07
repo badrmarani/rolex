@@ -18,8 +18,9 @@ class BaseVAE(pl.LightningModule):
     def __init__(self, hparams, data_dim):
         super().__init__()
 
-        self.save_hyperparameters(hparams)
         self.data_dim = data_dim
+        hparams.data_dim = data_dim
+        self.save_hyperparameters(hparams)
         self.embedding_dim = hparams.embedding_dim
 
         self.elbo = ELBO(self.hparams.beta)
