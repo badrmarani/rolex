@@ -7,7 +7,7 @@ import torch
 from pytorch_lightning.callbacks import LearningRateMonitor
 
 from uqvae import utils
-from uqvae.dataset import JANUSDataModule
+from uqvae.dataset import DataWeighter, JANUSDataModule
 from uqvae.models.base import Decoder, Encoder
 from uqvae.models.vae import BaseVAE
 
@@ -17,12 +17,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser = JANUSDataModule.add_model_specific_args(parser)
     parser = BaseVAE.add_model_specific_args(parser)
+    parser = DataWeighter.add_weight_args(parser)
     utils.add_default_trainer_args(parser)
     hparams = parser.parse_args()
     pl.seed_everything(hparams.seed)
 
     # create data
-    datamodule = JANUSDataModule(hparams)
+    datamodule = JANUSDataModule(hparams, DataWeighter(hparams))
 
     # load model
     model = BaseVAE(hparams, data_dim=datamodule.data_dim)
