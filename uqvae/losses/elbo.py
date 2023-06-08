@@ -3,9 +3,8 @@ from torch import distributions, nn
 
 
 class ELBO(nn.Module):
-    def __init__(self, beta: float) -> None:
+    def __init__(self) -> None:
         super(ELBO, self).__init__()
-        self.beta = beta
 
     def forward(self, x: torch.Tensor, qzx: distributions, pxz: distributions):
         log_likelihood = pxz.log_prob(x).sum(-1).mean(-1)
@@ -14,5 +13,4 @@ class ELBO(nn.Module):
             .sum(-1)
             .mean(-1)
         )
-        loss = -(log_likelihood - kld * self.beta)
-        return loss, -log_likelihood, kld * self.beta
+        return -log_likelihood, kld

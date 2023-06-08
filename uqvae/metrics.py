@@ -1,6 +1,9 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import torch
+from pytorch_metric_learning import distances
 from sdmetrics.reports.single_table import QualityReport
 from sdv.metadata import SingleTableMetadata
 from tqdm import trange
@@ -127,3 +130,62 @@ def mutual_information(
         n_simulations, dtype=torch.float32
     ).log() + torch.logsumexp(log_mi, dim=1)
     return log_mi_avg.exp()
+
+
+class ContrastiveLossTorch:
+    def __init__(self, threshold: float, hard: bool = True):
+        self.threshold = threshold
+        self.hard = hard
+
+    def pair_wise_distance(
+        self, latent_embeddings: torch.Tensor, targets: torch.Tensor
+    ):
+        """Iplementation of Soft Contrastive Loss (arXiv:2106.03609)."""
+        latent_embeddings_dist = distances.LpDistance(
+            normalize_embeddings=False, p=2, power=1
+        )
+        emb_pairwise_matrix = latent_embeddings_dist(latent_embeddings)
+
+        targets_dist = distances.LpDistance(normalize_embeddings=False, p=2, power=1)
+        targets_pairwise_matrix = targets_dist(targets)
+
+        loss = torch.zeros_like(emb_pairwise_matrix).to(latent_embeddings)
+        threshold_matrix = self.threshold * torch.ones(loss.shape).to(latent_embeddings)
+
+        high_diffy_filter = targets_pairwise_matrix > self.threshold
+        aux_max_diffz_thr = torch.maximum(emb_pairwise_matrix, threshold_matrix)
+        aux_min_diffz_thr = torch.minimum(emb_pairwise_matrix, threshold_matrix)
+
+        if self.hard:
+            loss[~high_diffy_filter] = emb_pairwise_matrix[~high_diffy_filter]
+            loss[high_diffy_filter] = (
+                targets_pairwise_matrix[high_diffy_filter]
+                - emb_pairwise_matrix[high_diffy_filter]
+            )
+        else:
+            loss[~high_diffy_filter] = aux_max_diffz_thr[~high_diffy_filter].div(
+                self.threshold
+            ) * (
+                aux_min_diffz_thr[~high_diffy_filter]
+                - targets_pairwise_matrix[~high_diffy_filter]
+            )
+            loss[high_diffy_filter] = 2 - aux_min_diffz_thr[high_diffy_filter].div(
+                self.threshold
+            ) * (
+                targets_pairwise_matrix[high_diffy_filter]
+                - aux_max_diffz_thr[high_diffy_filter]
+            )
+
+        loss = torch.relu(loss)
+        loss = torch.triu(loss, diagonal=1)
+        n = (loss > 0).sum()
+        if not n:
+            n = 1
+        return loss.sum().div(n)
+
+    @staticmethod
+    def exp_metric_id(threshold: float, hard: bool = True):
+        metric_id = f"contrast-thr-{threshold:g}"
+        if hard:
+            metric_id += "-hard"
+        return metric_id

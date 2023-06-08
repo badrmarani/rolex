@@ -71,7 +71,7 @@ def load(filename: str):
 
 
 class JANUSDataModule(pl.LightningDataModule):
-    def __init__(self, hparams) -> None:
+    def __init__(self, hparams, data_weighter) -> None:
         super().__init__()
 
         self.save_hyperparameters(hparams)
@@ -79,9 +79,12 @@ class JANUSDataModule(pl.LightningDataModule):
         self.test_size = hparams.test_size
         self.batch_size = hparams.batch_size
         self.transform_data = hparams.transform_data
+        self.data_weighter = data_weighter
 
         self.specific_setup()
         self.production_dataset_preprocess()
+        if self.hparams.semi_supervised_learning:
+            self.set_weights()
         self.make_tensor_dataset()
 
     @staticmethod
@@ -99,7 +102,8 @@ class JANUSDataModule(pl.LightningDataModule):
         )
         data_group.add_argument("--transform_data", default=False, action="store_true")
         data_group.add_argument(
-            "--semi_supervised_learning", default=False, action="store_true")
+            "--semi_supervised_learning", default=False, action="store_true"
+        )
         return parent_parser
 
     def production_dataset_preprocess(self):
@@ -116,15 +120,14 @@ class JANUSDataModule(pl.LightningDataModule):
         else:
             print("No data tranformation")
             self.data_train = torch.from_numpy(self.data_train.values.astype("float32"))
-            self.data_val = torch.from_numpy(self.data_val.values.astype("float32"))            
+            self.data_val = torch.from_numpy(self.data_val.values.astype("float32"))
         self.data_dim = self.data_train.size(-1)
 
-    def setup(self, stage: str) -> None:
+    def setup(self, stage: str):
         pass
 
     def set_weights(self, data, properties):
         weights = DataWeighter.uniform_weights(properties.values.astype("float32"))
-        
         self.sampler = torch.utils.data.WeightedRandomSampler(
             weights=weights,
             num_samples=len(weights),
@@ -155,50 +158,74 @@ class JANUSDataModule(pl.LightningDataModule):
                 shuffle=False,
             )
             self.data_train = data.iloc[indx_train]
-            self.target_train = torch.from_numpy(target.iloc[indx_train].values.astype("float32"))
+            self.target_train = torch.from_numpy(
+                target.iloc[indx_train].values.astype("float32")
+            )
             self.data_val = data.iloc[indx_val]
-            self.target_val = torch.from_numpy(target.iloc[indx_val].values.astype("float32"))
+            self.target_val = torch.from_numpy(
+                target.iloc[indx_val].values.astype("float32")
+            )
 
     def make_tensor_dataset(self):
         self.train_dataset = data.TensorDataset(self.data_train)
-        self.val_dataset = data.TensorDataset(self.data_val)        
+        self.val_dataset = data.TensorDataset(self.data_val)
         if self.hparams.semi_supervised_learning:
             self.train_dataset = data.TensorDataset(self.data_train, self.target_train)
             self.val_dataset = data.TensorDataset(self.data_val, self.target_val)
 
     def train_dataloader(self):
-        loader = data.DataLoader(
+        return data.DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
             num_workers=NUM_WORKERS,
             shuffle=False,
             worker_init_fn=reproduce,
             generator=GENERATOR,
-            # drop_last=True,
+            sampler=(
+                self.train_sampler if self.hparams.semi_supervised_learning else None
+            ),
         )
-        return loader
 
     def val_dataloader(self):
-        loader = data.DataLoader(
+        return data.DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
             num_workers=NUM_WORKERS,
             shuffle=False,
             worker_init_fn=reproduce,
             generator=GENERATOR,
-            # drop_last=True,
+            sampler=(
+                self.val_sampler if self.hparams.semi_supervised_learning else None
+            ),
         )
-        return loader
+
+    def set_weights(self):
+        weights_train = self.data_weighter.weighting_function(self.target_train)
+        weights_val = self.data_weighter.weighting_function(self.target_val)
+
+        self.train_sampler = torch.utils.data.WeightedRandomSampler(
+            weights=weights_train,
+            num_samples=len(weights_train),
+            replacement=True,
+        )
+        self.val_sampler = torch.utils.data.WeightedRandomSampler(
+            weights=weights_val,
+            num_samples=len(weights_val),
+            replacement=True,
+        )
 
 
 class DataWeighter:
+    weight_types = ["uniform", "property_values", "rank"]
+
     def __init__(self, hparams):
         if hparams.weight_type in ["uniform"]:
             self.weighting_function = DataWeighter.uniform_weights
+        elif hparams.weight_type in ["property_values"]:
+            self.weighting_function = DataWeighter.property_values_weights
         else:
             raise NotImplementedError
-        
-        self.weight_quantile = hparams.weight_quantile
+
         self.weight_type = hparams.weight_type
 
     @staticmethod
@@ -206,5 +233,27 @@ class DataWeighter:
         return weights / np.mean(weights)
 
     @staticmethod
-    def uniform_weights(properties: np.array):
-        return np.ones_like(properties)
+    def uniform_weights(properties: torch.Tensor):
+        return torch.ones_like(properties)
+
+    @staticmethod
+    def property_values_weights(properties: torch.Tensor):
+        return properties
+
+    @staticmethod
+    def add_weight_args(parser: argparse.ArgumentParser):
+        weight_group = parser.add_argument_group("weighting")
+        weight_group.add_argument(
+            "--weight_type",
+            type=str,
+            default="uniform",
+            choices=DataWeighter.weight_types,
+            required=True,
+        )
+        weight_group.add_argument(
+            "--rank_weight_k",
+            type=float,
+            default=None,
+            help="k parameter for rank weighting",
+        )
+        return parser
