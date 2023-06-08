@@ -1,11 +1,10 @@
-from typing import Any
-
 import numpy as np
 import pandas as pd
 import torch
 from pytorch_metric_learning import distances
 from sdmetrics.reports.single_table import QualityReport
 from sdv.metadata import SingleTableMetadata
+from torch import nn
 from tqdm import trange
 
 from .utils import enable_dropout, lde, reproduce
@@ -132,14 +131,13 @@ def mutual_information(
     return log_mi_avg.exp()
 
 
-class ContrastiveLossTorch:
+class ContrastiveLoss(nn.Module):
     def __init__(self, threshold: float, hard: bool = True):
+        super().__init__()
         self.threshold = threshold
         self.hard = hard
 
-    def pair_wise_distance(
-        self, latent_embeddings: torch.Tensor, targets: torch.Tensor
-    ):
+    def forward(self, latent_embeddings: torch.Tensor, targets: torch.Tensor):
         """Iplementation of Soft Contrastive Loss (arXiv:2106.03609)."""
         latent_embeddings_dist = distances.LpDistance(
             normalize_embeddings=False, p=2, power=1

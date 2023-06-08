@@ -5,11 +5,11 @@ from typing import Any, Optional
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torchvision.utils import make_grid
 
 from ..losses.elbo import ELBO
+from ..metrics import ContrastiveLoss
 from ..utils import parse_list
 from .base import Decoder, Encoder
 
@@ -23,7 +23,7 @@ class BaseVAE(pl.LightningModule):
         self.save_hyperparameters(hparams)
         self.embedding_dim = hparams.embedding_dim
 
-        self.elbo = ELBO(self.hparams.beta)
+        self.elbo = ELBO()
         self.set_encoder_decoder()
 
         self.logging_prefix = None
@@ -68,15 +68,25 @@ class BaseVAE(pl.LightningModule):
         return loss
 
     def forward(self, batch):
-        if self.hparams.semi_supervised_learning:
-            x, y = batch
+        if not self.hparams.semi_supervised_learning:
+            (x,) = batch
         else:
-            x, = batch
-
+            x, y = batch
+            y = y.view(-1, 1)
         qzx = self.encoder(x)
         z = qzx.rsample()
         pxz = self.decoder(z)
-        loss, log_likelihood, kld = self.elbo(x, qzx, pxz)
+        log_likelihood, kld = self.elbo(x, qzx, pxz)
+        loss = log_likelihood + kld * self.hparams.beta
+
+        metric_loss = 0.0
+        if self.hparams.semi_supervised_learning:
+            contrastive_loss = ContrastiveLoss(
+                threshold=self.hparams.metric_loss_threshold,
+                hard=self.hparams.metric_loss_hard,
+            )
+            metric_loss = contrastive_loss(z, y)
+            loss += metric_loss * self.hparams.metric_loss_beta
 
         if self.logging_prefix is not None:
             self.log(
@@ -85,6 +95,12 @@ class BaseVAE(pl.LightningModule):
                 prog_bar=self.log_progress_bar,
             )
             self.log(f"kl/{self.logging_prefix}", kld, prog_bar=self.log_progress_bar)
+            if self.hparams.semi_supervised_learning:
+                self.log(
+                    f"metric_loss:contrastive/{self.logging_prefix}",
+                    metric_loss,
+                    prog_bar=self.log_progress_bar,
+                )
             self.log(f"loss/{self.logging_prefix}", loss)
 
         return loss
@@ -94,34 +110,16 @@ class BaseVAE(pl.LightningModule):
         parser = argparse.ArgumentParser(parents=[parent_parser], add_help=False)
         parser.register("type", list, parse_list)
         vae_group = parser.add_argument_group("VAE")
+        vae_group.add_argument("--metric_loss_hard", default=False, action="store_true")
+        vae_group.add_argument("--metric_loss_threshold", type=float, required=False)
+        vae_group.add_argument("--metric_loss_beta", type=float, required=False)
+        vae_group.add_argument("--embedding_dim", type=int, required=True)
         vae_group.add_argument(
-            "--embedding_dim",
-            type=int,
-            required=True,
-            help="Dimensionality of the latent space",
+            "--compress_dims", type=list, default=None, required=True
         )
         vae_group.add_argument(
-            "--compress_dims",
-            type=list,
-            default=None,
-            required=True,
-            help="Hidden dimensions of encoder",
+            "--decompress_dims", type=list, default=None, required=True
         )
-        vae_group.add_argument(
-            "--decompress_dims",
-            type=list,
-            default=None,
-            required=True,
-            help="Hidden dimensions of decoder",
-        )
-        vae_group.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
-        vae_group.add_argument(
-            "--beta", type=float, default=1.0, help="Final value for beta"
-        )
-        vae_group.add_argument(
-            "--target_predictor_hdims",
-            type=list,
-            default=None,
-            help="Hidden dimensions of MLP predicting target values",
-        )
+        vae_group.add_argument("--lr", type=float, default=1e-3)
+        vae_group.add_argument("--beta", type=float, default=1.0)
         return parser

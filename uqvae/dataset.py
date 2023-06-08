@@ -248,7 +248,7 @@ class DataWeighter:
             type=str,
             default="uniform",
             choices=DataWeighter.weight_types,
-            required=True,
+            required=False,
         )
         weight_group.add_argument(
             "--rank_weight_k",
