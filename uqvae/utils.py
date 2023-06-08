@@ -1,57 +1,48 @@
-import matplotlib.pyplot as plt
+import random
+from ast import literal_eval
+from contextlib import contextmanager
+
+import numpy as np
 import torch
-from torch import nn
-from torch.utils import data
-
-from .losses import ELBOLoss
-import pandas as pd
 
 
-def train_one_epoch(
-    epoch,
-    model,
-    loader,
-    loss_fn,
-    optimizer,
-    device,
-    log_intervall=50
-):
-    model.train()
-    train_loss = 0.0
-    train_rec_loss, train_kld_loss = 0.0, 0.0
-    for i, batch in enumerate(loader, start=1):
-        x, _ = batch
-        x = x.to(device)
-        optimizer.zero_grad()
-        xhat, mu, logvar = model(x)
+def enable_dropout(model):
+    for m in model.modules():
+        if m.__class__.__name__.startswith("Dropout"):
+            m.train()
 
-        loss, rec_loss, kld_loss = loss_fn(x, xhat, mu, logvar)
-        train_loss += loss.item()
-        train_rec_loss += rec_loss.item()
-        train_kld_loss += kld_loss.item()
-        loss.backward()
-        optimizer.step()
 
-        if not i % log_intervall:
-            print(
-                "train epoch: {} [{}/{} ({:.0f}%)] elbo_loss: {:.6f} kld_loss {:.6f} rec_loss {:.6f}".format(
-                    epoch,
-                    i * len(batch),
-                    len(batch) * len(loader),
-                    100.0 * i / len(loader),
-                    loss.item() / len(batch),
-                    kld_loss.item() / len(batch),
-                    rec_loss.item() / len(batch),
-                )
-            )
+def lde(log_a, log_b):
+    max_log = torch.max(log_a, log_b)
+    min_log = torch.min(log_a, log_b)
+    return max_log + torch.log(1 + torch.exp(min_log - max_log))
 
-    print(
-        "epoch: {} avg_elbo_loss: {:.6f} avg_kld_loss {:.6f} avg_rec_loss {:.6f}".format(
-            epoch,
-            train_loss / len(loader.dataset),
-            train_kld_loss / len(loader.dataset),
-            train_rec_loss / len(loader.dataset),
-        )
-    )
 
-    return model
+def add_default_trainer_args(parser, default_root=None):
+    pl_trainer_grp = parser.add_argument_group("pl trainer")
+    pl_trainer_grp.add_argument("--cuda", default=False, action="store_true")
+    pl_trainer_grp.add_argument("--seed", type=int, default=42)
+    pl_trainer_grp.add_argument("--root_dir", type=str, default=default_root)
+    pl_trainer_grp.add_argument("--load_from_checkpoint", type=str, default=None)
+    pl_trainer_grp.add_argument("--max_epochs", type=int, default=1000)
+
+
+@contextmanager
+def reproduce(seed=42):
+    random.seed(seed)
+    np.random.default_rng(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.enabled = True
+    yield
+
+
+def parse_list(raw: str):
+    pattern = raw.replace('"', "").replace("\\'", "'")
+    return literal_eval(pattern)
