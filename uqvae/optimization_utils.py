@@ -19,6 +19,8 @@ def gradient_optimization(
     no_uncertainty: bool = False,
     track_logs: bool = True,
     maximize: bool = True,
+    lower_bound: float = -20.0,
+    upper_bound: float = 20.0,
 ):
     decoder.train()
     enable_dropout(decoder)
@@ -58,7 +60,8 @@ def gradient_optimization(
                 z,
             )
 
-        z.data.clip_(-20, 20)
+        # TODO: generalize it to embedding_dim > 2
+        z.data.clip_(lower_bound, upper_bound)
         if track_logs:
             logs_z.append(z)
     if track_logs:
