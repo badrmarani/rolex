@@ -1,7 +1,7 @@
 import torch
 from torch import distributions, nn
 
-from ..models.modules import BayesianLinear
+from ..modules import BayesianLinear
 
 
 class BayesianKLLoss(nn.Module):
