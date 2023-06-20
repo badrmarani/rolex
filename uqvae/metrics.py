@@ -4,10 +4,30 @@ import torch
 from pytorch_metric_learning import distances
 from sdmetrics.reports.single_table import QualityReport
 from sdv.metadata import SingleTableMetadata
-from torch import nn
+from torch import nn, distributions
 from tqdm import trange
 
 from .utils import enable_dropout, lde, reproduce
+
+
+def denormalize_targets(y, scaler_path: str, return_scaler: bool = False):
+    scaler = pd.read_pickle(scaler_path)
+    scaler_info = pd.DataFrame(
+        data=np.vstack(
+            (
+                scaler.mean_.reshape(1, -1),
+                scaler.scale_.reshape(1, -1),
+            )
+        ).reshape(2, -1),
+        columns=scaler.feature_names_in_,
+        index=["mean", "scale"],
+    )
+    scaler_info = torch.from_numpy(scaler_info.values.astype("float32"))
+    y = y * scaler_info[1, :] + scaler_info[0, :]
+    if return_scaler:
+        return y, scaler
+    else:
+        return y
 
 
 def emp_boundary_adherence(fake, scaler_path: str):
@@ -88,7 +108,6 @@ def sdmetrics_wrapper(real, fake, metric):
 
 
 @torch.no_grad()
-@reproduce()
 def mutual_information(
     decoder,
     latent_sample,
@@ -100,90 +119,106 @@ def mutual_information(
     enable_dropout(decoder)
     log_mi = []
     if verbose:
-        mrange = trange(1, n_simulations + 1, desc=f"mutual_information")
+        looper = trange(1, n_simulations + 1, desc=f"mutual_information")
     else:
-        mrange = range(1, n_simulations + 1)
-    for s in mrange:
+        looper = range(1, n_simulations + 1)
+    for _ in looper:
         log_psm = []
         p_theta_0 = decoder(latent_sample)
         x_recon = p_theta_0.rsample()
-        for m in range(n_sampled_outcomes):
+        for _ in range(n_sampled_outcomes):
             p_theta_m = decoder(latent_sample)
             log_psm += [p_theta_m.log_prob(x_recon).mean(-1)]
         log_psm = torch.stack(log_psm, dim=1)
         log_psm = torch.where(log_psm <= 0, log_psm, -log_psm)
 
-        log_ps = -torch.tensor(
-            n_sampled_outcomes, dtype=torch.float32
-        ).log() + torch.logsumexp(log_psm, dim=1)
+        log_ps = (
+            - torch.tensor(n_sampled_outcomes, dtype=torch.float32).log()
+            + torch.logsumexp(log_psm, dim=1)
+        )
 
-        log_hs_left = -torch.tensor(
-            n_sampled_outcomes, dtype=torch.float32
-        ).log() + torch.logsumexp(log_psm + torch.log(-log_psm), dim=1)
+        log_hs_left = (
+            - torch.tensor(n_sampled_outcomes, dtype=torch.float32).log()
+            + torch.logsumexp(log_psm + torch.log(-log_psm), dim=1)
+        )
 
         log_hs_right = log_ps + torch.log(-log_ps)
         log_hs = lde(log_hs_left, log_hs_right)
         log_mi += [log_hs - log_ps]
     log_mi = torch.stack(log_mi, dim=1)
-    log_mi_avg = -torch.tensor(
-        n_simulations, dtype=torch.float32
-    ).log() + torch.logsumexp(log_mi, dim=1)
+    log_mi_avg = (
+        - torch.tensor(n_simulations, dtype=torch.float32).log()
+        + torch.logsumexp(log_mi, dim=1)
+    )
     return log_mi_avg.exp()
 
 
-class ContrastiveLoss(nn.Module):
-    def __init__(self, threshold: float, hard: bool = True):
-        super().__init__()
-        self.threshold = threshold
-        self.hard = hard
+@torch.no_grad()
+def effective_sample_size(
+    decoder,
+    latent_sample,
+    n_simulations,
+    n_sampled_outcomes,
+    reduction="none",
+    verbose=True
+):
+    """
+    Ref: https://arxiv.org/abs/1912.05651v3.
+    """
+    decoder.eval()
+    enable_dropout(decoder)
+    log_ess_x = []
+    looper = trange if verbose else range
+    for _ in looper(n_simulations):
+        log_px = []
+        p0 = decoder(latent_sample)
+        x = p0.rsample()
+        for _ in range(n_sampled_outcomes):
+            pi = decoder(latent_sample)
+            log_px += [pi.log_prob(x).sum(-1)]
+        log_px = torch.stack(log_px, dim=1)
+        log_wx = log_px - log_px.logsumexp(dim=1)[:, None]
+        log_ess_x += [-torch.logsumexp(2 * log_wx, dim=1)]
+    log_ess_x = torch.stack(log_ess_x, dim=1)
+    log_ess_z = -torch.tensor(n_simulations).log() + \
+        log_ess_x.logsumexp(dim=-1)
+    if reduction.lower() == "none":
+        return log_ess_z
+    elif reduction.lower() == "mean":
+        return log_ess_z.mean(-1)
+    else:
+        print(f"{reduction.lower()} is not implemented.")
 
-    def forward(self, latent_embeddings: torch.Tensor, targets: torch.Tensor):
-        """Iplementation of Soft Contrastive Loss (arXiv:2106.03609)."""
-        latent_embeddings_dist = distances.LpDistance(
-            normalize_embeddings=False, p=2, power=1
-        )
-        emb_pairwise_matrix = latent_embeddings_dist(latent_embeddings)
-
-        targets_dist = distances.LpDistance(normalize_embeddings=False, p=2, power=1)
-        targets_pairwise_matrix = targets_dist(targets)
-
-        loss = torch.zeros_like(emb_pairwise_matrix).to(latent_embeddings)
-        threshold_matrix = self.threshold * torch.ones(loss.shape).to(latent_embeddings)
-
-        high_diffy_filter = targets_pairwise_matrix > self.threshold
-        aux_max_diffz_thr = torch.maximum(emb_pairwise_matrix, threshold_matrix)
-        aux_min_diffz_thr = torch.minimum(emb_pairwise_matrix, threshold_matrix)
-
-        if self.hard:
-            loss[~high_diffy_filter] = emb_pairwise_matrix[~high_diffy_filter]
-            loss[high_diffy_filter] = (
-                targets_pairwise_matrix[high_diffy_filter]
-                - emb_pairwise_matrix[high_diffy_filter]
-            )
-        else:
-            loss[~high_diffy_filter] = aux_max_diffz_thr[~high_diffy_filter].div(
-                self.threshold
-            ) * (
-                aux_min_diffz_thr[~high_diffy_filter]
-                - targets_pairwise_matrix[~high_diffy_filter]
-            )
-            loss[high_diffy_filter] = 2 - aux_min_diffz_thr[high_diffy_filter].div(
-                self.threshold
-            ) * (
-                targets_pairwise_matrix[high_diffy_filter]
-                - aux_max_diffz_thr[high_diffy_filter]
-            )
-
-        loss = torch.relu(loss)
-        loss = torch.triu(loss, diagonal=1)
-        n = (loss > 0).sum()
-        if not n:
-            n = 1
-        return loss.sum().div(n)
-
-    @staticmethod
-    def exp_metric_id(threshold: float, hard: bool = True):
-        metric_id = f"contrast-thr-{threshold:g}"
-        if hard:
-            metric_id += "-hard"
-        return metric_id
+@torch.no_grad()
+def marginal_log_likelihood_estimator(
+    model,
+    data,
+    n_sampled_outcomes=1000,
+    reduction="none",
+    verbose=True
+):
+    """
+    Estimate the marginal log-likelihood using importance sampling method.
+    Ref: Appendix D of the paper, https://arxiv.org/abs/1312.6114.
+    """
+    model.eval()
+    enable_dropout(model)
+    log_p = []
+    prior = distributions.Normal(0.0, 1.0)
+    looper = trange if verbose else range
+    for _ in looper(n_sampled_outcomes):
+        qzx, pxz = model(data)
+        z = qzx.rsample()
+        log_p += [
+            qzx.log_prob(z).sum(-1)
+            - prior.log_prob(z).sum(-1)
+            - pxz.log_prob(data).sum(-1)
+        ]
+    log_p = torch.stack(log_p, dim=-1)
+    log_p = torch.tensor(data.size(0)).log() - log_p.logsumexp(1)
+    if reduction.lower() == "none":
+        return log_p
+    elif reduction.lower() == "mean":
+        return log_p.mean(-1)
+    else:
+        print(f"{reduction.lower()} is not implemented.")
