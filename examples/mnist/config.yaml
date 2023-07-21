@@ -1,0 +1,79 @@
+defaults:
+  - _self_
+  - override hydra/hydra_logging: disabled
+  - override hydra/job_logging: disabled
+
+hydra:
+  output_subdir: null  
+  run:  
+    dir: .
+
+
+dtype: float32
+
+experiment_name: "mnist"
+
+root: "examples/mnist/resutls"
+save: true
+
+digit: 3
+normalize_targets: False
+
+device: "cuda"
+
+epochs: 1
+
+train_batch_size: 500
+train_shuffle: false
+train_drop_last: false
+pin_memory: true
+num_workers: 0
+
+valid: false
+valid_batch_size: 500
+valid_shuffle: true
+valid_drop_last: false
+
+add_scheduler: false
+lr: 1e-3
+weight_decay: 1e-5
+
+weight_type: "rank"
+rank_weight_k: 1e-3
+
+p: 0.3
+data_dim: 784
+decompress_dims:
+  - 128
+  - 128
+compress_dims:
+  - 128
+  - 128
+embedding_dim: 2
+bayesian: false
+
+beta_kld: 1.0
+beta_reg: 1.0
+
+optimization:
+  optimize: true
+  optimization_method: "bayesian_optimization"
+
+  n_steps: 10
+  gradient_scale: 10
+  normalize_gradients: true
+  
+  no_uncertainty: false
+  uncertainty_threshold_value: 10
+  n_simulations: 100
+  n_sampled_outcomes: 10
+
+  save_history: true
+
+  maximize: false
+
+  lower_bound: 10
+  upper_bound: 20
+
+  pop_size: 300
+  verbose: true

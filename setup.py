@@ -1,6 +1,6 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
-    name="uq-vae",
+    name="rolex",
     packages=find_packages(),
 )

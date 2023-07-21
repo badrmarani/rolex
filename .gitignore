@@ -1,13 +1,1 @@
-data/
-logs/
-report/
-results*
-
-*log*/
-references/
-
-mnist/
-
-*.pyc
-*.egg-info/
-__pycache__/
+examples/janus/
