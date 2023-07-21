@@ -1,3 +1,4 @@
 examples/janus/
 examples/*/results
+notebooks/
 *.egg-info/
