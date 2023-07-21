@@ -12,8 +12,6 @@ from rolex.dataset import DataWeighter
 from rolex.models.base import Decoder, Encoder, MLPRegressor
 from rolex.models.vae import VAE
 from rolex.trainer import Trainer
-from rolex.utils import get_optimization_method
-
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(config):
@@ -61,18 +59,6 @@ def main(config):
         config=config,
         dtype=dtype,
     )
-
-    # with torch.no_grad():
-    #     from sklearn.linear_model import LinearRegression
-    #     device = torch.device(config.device)
-    #     x, y = train_loader.dataset.tensors
-    #     x = x.to(device)
-    #     z_mu, z_sigma = model.encoder(x)
-    #     z = z_mu + z_sigma*torch.randn_like(z_sigma)
-    #     z = z.cpu().numpy()
-    #     y = y.numpy()
-    #     regressor = LinearRegression()
-    #     regressor.fit(z, y)
 
     # optimize
     trainer.optimize(regressor=model.regressor)

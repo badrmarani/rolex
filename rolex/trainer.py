@@ -41,6 +41,7 @@ class Trainer:
             self.optimizer.zero_grad()
             loss, log = self.model(
                 data,
+                device=self.device,
                 betas=(self.config.beta_kld, self.config.beta_reg),
             )
             loss.backward()
@@ -52,6 +53,7 @@ class Trainer:
         for data in loader:
             _, log = self.model(
                 data,
+                device=self.device,
                 betas=(self.config.beta_kld, self.config.beta_reg),
             )
         return log

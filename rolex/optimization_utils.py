@@ -153,7 +153,7 @@ def gradient_optimization(
 
         with torch.no_grad():
             if save_history:
-                if save_history:
+                if maximize:
                     best_p_index = torch.argmax(p, dim=0)
                 else:
                     best_p_index = torch.argmin(p, dim=0)
