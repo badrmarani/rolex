@@ -1,4 +1,4 @@
-# WIP - Uncertainty Quantification in Latent Space
+# Uncertainty-Constrained Optimization in Learned Latent Space
 
 ## Dependencies
 
