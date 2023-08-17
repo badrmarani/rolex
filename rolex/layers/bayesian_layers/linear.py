@@ -1,18 +1,6 @@
 import torch
 from torch import nn
 
-class SpectralLinear(nn.Linear):
-    def __init__(
-        self,
-        in_features: int,
-        out_features: int,
-        bias: bool = True,
-        device=None,
-        dtype=None
-    ) -> None:
-        super().__init__(in_features, out_features, bias, device, dtype)
-        
-    
 
 class BayesianLinear(nn.Module):
     def __init__(
@@ -128,6 +116,5 @@ class FlipoutLinear(BayesianLinear):
 
         sign_r = inp.clone().uniform_(-1, 1).sign()
         sign_s = out.clone().uniform_(-1, 1).sign()
-        perturbed_outs = nn.functional.linear(
-            inp * sign_r, weight_delta, bias) * sign_s
+        perturbed_outs = nn.functional.linear(inp * sign_r, weight_delta, bias) * sign_s
         return out + perturbed_outs

@@ -1,16 +1,25 @@
 import torch
 from torch import distributions, nn
 
+from ..layers import BayesianLinear
 
-class ELBO(nn.Module):
-    def __init__(self) -> None:
-        super(ELBO, self).__init__()
 
-    def forward(self, x: torch.Tensor, qzx: distributions, pxz: distributions):
-        log_likelihood = pxz.log_prob(x).sum(-1).mean(-1)
-        kld = (
-            distributions.kl_divergence(qzx, distributions.Normal(0.0, 1.0))
-            .sum(-1)
-            .mean(-1)
-        )
-        return log_likelihood, kld
+class BayesianELBOLoss(nn.Module):
+    def __init__(self, model: nn.Module):
+        super(BayesianELBOLoss, self).__init__()
+        self.model = model
+
+    def forward(self) -> torch.Tensor:
+        kld = 0.0
+        for m in self.model.modules():
+            if isinstance(m, BayesianLinear):
+                kld += distributions.kl_divergence(
+                    distributions.Normal(m.weight_mu, torch.log1p(m.weight_rho.exp())),
+                    distributions.Normal(m.prior_weight_mu, m.prior_weight_sigma),
+                ).mean()
+                if m.bias:
+                    kld += distributions.kl_divergence(
+                        distributions.Normal(m.bias_mu, torch.log1p(m.bias_rho.exp())),
+                        distributions.Normal(m.prior_bias_mu, m.prior_bias_sigma),
+                    ).mean()
+        return kld
