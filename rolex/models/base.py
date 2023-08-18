@@ -20,6 +20,19 @@ class BaseVAE(pl.LightningModule):
         bayesian_decoder: str,
         **kwargs,
     ) -> None:
+        """
+        Base class for Variational Autoencoders (VAEs).
+
+        Args:
+            encoder: Encoder module.
+            decoder: Decoder module.
+            lr (float): Learning rate.
+            weight_decay (float): Weight decay for optimization.
+            beta_on_kld (float): Scaling factor for the KLD loss.
+            bayesian_decoder (str): Type of decoder, can be "bayesian" or None.
+            **kwargs: Additional keyword arguments.
+
+        """
         super(BaseVAE, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
@@ -53,20 +66,48 @@ class BaseVAE(pl.LightningModule):
         return parser
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
+        """
+        Configure the optimizer for training.
+
+        Returns:
+            torch.optim.Optimizer: Optimizer for training.
+
+        """
         opt = torch.optim.Adam(
-            params=list(self.encoder.parameters()) + list(self.decoder.parameters()),
+            params=list(self.encoder.parameters())
+            + list(self.decoder.parameters()),
             lr=self.lr,
             weight_decay=self.weight_decay,
         )
         return opt
 
     def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+        """
+        Encode input data into the latent space.
+
+        Args:
+            x (torch.Tensor): Input data.
+
+        Returns:
+            Tuple[torch.Tensor, ...]: Tuple containing latent sample, mean, and log variance.
+
+        """
         mu, logvar = self.encoder(x)
         std = logvar.mul(0.5).exp() + 1e-10
         z = mu + torch.randn_like(std) * std
         return z, mu, logvar
 
     def decode(self, z: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+        """
+        Decode a latent sample into reconstructed data.
+
+        Args:
+            z (torch.Tensor): Latent sample.
+
+        Returns:
+            Tuple[torch.Tensor, ...]: Tuple containing reconstructed mean and standard deviation.
+
+        """
         mu, std = self.decoder(z)
         return mu, std
 
@@ -76,6 +117,18 @@ class BaseVAE(pl.LightningModule):
         recon_x: torch.Tensor,
         sigmas: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Compute the reconstruction loss.
+
+        Args:
+            x (torch.Tensor): Original input data.
+            recon_x (torch.Tensor): Reconstructed data mean.
+            sigmas (torch.Tensor): Standard deviations of the reconstructed data.
+
+        Returns:
+            torch.Tensor: Reconstruction loss.
+
+        """
         decoder_distributions = distributions.Normal(recon_x, sigmas)
         neg_log_likelihood = -decoder_distributions.log_prob(x)
         return neg_log_likelihood.sum() / x.size(0)
@@ -86,6 +139,18 @@ class BaseVAE(pl.LightningModule):
         mu: torch.Tensor,
         logvar: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Compute the Kullback-Leibler divergence loss.
+
+        Args:
+            z (torch.Tensor): Latent sample.
+            mu (torch.Tensor): Mean of the latent distribution.
+            logvar (torch.Tensor): Log variance of the latent distribution.
+
+        Returns:
+            torch.Tensor: KLD loss.
+
+        """
         loss = 0.5 * (logvar.exp() + mu.pow(2) - 1.0 - logvar)
         loss = loss.sum() / z.size(0)
         return loss
@@ -113,13 +178,19 @@ class BaseVAE(pl.LightningModule):
 
         if self.logging_prefix is not None:
             self.log(
-                f"rec/{self.logging_prefix}", rec_loss, prog_bar=self.log_progress_bar
+                f"rec/{self.logging_prefix}",
+                rec_loss,
+                prog_bar=self.log_progress_bar,
             )
             self.log(
-                f"kld/{self.logging_prefix}", kld_loss, prog_bar=self.log_progress_bar
+                f"kld/{self.logging_prefix}",
+                kld_loss,
+                prog_bar=self.log_progress_bar,
             )
             self.log(
-                f"loss/{self.logging_prefix}", loss, prog_bar=self.log_progress_bar
+                f"loss/{self.logging_prefix}",
+                loss,
+                prog_bar=self.log_progress_bar,
             )
         return loss
 

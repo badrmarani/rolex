@@ -4,7 +4,7 @@ from torch import nn
 from tqdm import trange
 
 from ..metrics import mutual_information
-from ..utils import enable_dropout
+from ..metrics.utils import enable_dropout
 
 
 def gradient_optimization(
@@ -23,7 +23,31 @@ def gradient_optimization(
     lower_bound: float = -20.0,
     upper_bound: float = 20.0,
 ):
-    decoder.train()
+    """
+    Uncertainty-constrained gradient ascent (descent).
+
+    Args:
+        decoder (nn.Module): The decoder model.
+        regressor (nn.Module): The regressor model.
+        z (torch.Tensor): The input latent tensor to be optimized.
+        n_steps (int): Number of optimization steps.
+        gradient_scale (float): Scale factor for the gradient update.
+        normalize_gradients (bool): If True, normalize gradients.
+        uncertainty_threshold_value (float, optional): Threshold for uncertainty-based update.
+        n_simulations (int): Number of simulations for uncertainty computation.
+        n_sampled_outcomes (int): Number of sampled outcomes for uncertainty computation.
+        no_uncertainty (bool): If True, ignore uncertainty-based update.
+        save_history (bool): If True, save optimization history.
+        maximize (bool): If True, perform gradient ascent, else gradient descent.
+        lower_bound (float, optional): Lower bound for optimization. Default is -20.0.
+        upper_bound (float, optional): Upper bound for optimization. Default is 20.0.
+
+
+    Returns:
+        torch.Tensor: The optimized latent tensor 'z'.
+
+    """
+    decoder.eval()
     enable_dropout(decoder)
 
     if maximize:
@@ -34,7 +58,9 @@ def gradient_optimization(
     z.requires_grad = True
     if save_history:
         logs = []
-    for _ in trange(n_steps, desc=f"Gradient {'ascent' if maximize else 'descent'}"):
+    for _ in trange(
+        n_steps, desc=f"Gradient {'ascent' if maximize else 'descent'}"
+    ):
         p = regressor(z)
 
         with torch.no_grad():
@@ -46,7 +72,10 @@ def gradient_optimization(
                 best_p = p[best_p_index]
                 logs += [
                     np.concatenate(
-                        [z[best_p_index, ...].cpu().numpy(), best_p.cpu().numpy()],
+                        [
+                            z[best_p_index, ...].cpu().numpy(),
+                            best_p.cpu().numpy(),
+                        ],
                         axis=1,
                     )
                 ]

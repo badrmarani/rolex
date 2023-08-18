@@ -2,6 +2,11 @@ import torch
 
 
 def enable_dropout(model):
+    """Enable dropout layers during inference time.
+
+    Args:
+        model (nn.Module): Pytorch model.
+    """
     for m in model.modules():
         if m.__class__.__name__.startswith("Dropout"):
             m.train()

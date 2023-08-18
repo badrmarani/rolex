@@ -33,7 +33,13 @@ class TabularVAE(BaseVAE):
         **kwargs,
     ) -> None:
         super().__init__(
-            encoder, decoder, lr, weight_decay, beta_on_kld, bayesian_decoder, **kwargs
+            encoder,
+            decoder,
+            lr,
+            weight_decay,
+            beta_on_kld,
+            bayesian_decoder,
+            **kwargs,
         )
         self.data_transformer = data_transformer
         self.real_filtered_data = real_filtered_data
@@ -50,6 +56,9 @@ class TabularVAE(BaseVAE):
 
     @torch.no_grad()
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        """
+        Calculate and log quality scores at the end of each training epoch.
+        """
         self.decoder.eval()
         fake = generate_fake_samples(
             decoder=self.decoder,
@@ -77,6 +86,18 @@ class TabularVAE(BaseVAE):
         recon_x: torch.Tensor,
         sigmas: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Compute the reconstruction loss.
+
+        Args:
+            x (torch.Tensor): Original input data.
+            recon_x (torch.Tensor): Reconstructed data mean.
+            sigmas (torch.Tensor): Standard deviations of the reconstructed data.
+
+        Returns:
+            torch.Tensor: Reconstruction loss.
+
+        """
         st = 0
         loss = []
         for column_info in self.data_transformer.transformer.output_info_list:

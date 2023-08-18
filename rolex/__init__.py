@@ -23,6 +23,17 @@ def cli(
     args: Namespace,
     version: Optional[str] = None,
 ) -> None:
+    """
+    Command-line interface for training a model.
+
+    Args:
+        model (pl.LightningModule): The PyTorch Lightning model to be trained.
+        datamodule (pl.LightningDataModule): The PyTorch Lightning data module.
+        root (Union[str, Path]): Root directory for logging and saving checkpoints.
+        exp_name (str): Experiment name for logging purposes.
+        args (Namespace): Parsed command-line arguments.
+        version (Optional[str], optional): Version identifier for logging. Defaults to None.
+    """
     if isinstance(root, str):
         root = Path(root)
 
@@ -52,7 +63,9 @@ def cli(
     callbacks = [
         save_checkpoints,
         LearningRateMonitor(logging_interval="step"),
-        EarlyStopping(monitor=monitor, patience=np.inf, check_finite=True, mode=mode),
+        EarlyStopping(
+            monitor=monitor, patience=np.inf, check_finite=True, mode=mode
+        ),
     ]
 
     # trainer
@@ -70,6 +83,16 @@ def init_args(
     model: pl.LightningModule,
     datamodule: pl.LightningDataModule,
 ) -> Namespace:
+    """
+    Initialize command-line arguments for training.
+
+    Args:
+        model (pl.LightningModule): The PyTorch Lightning model.
+        datamodule (pl.LightningDataModule): The PyTorch Lightning data module.
+
+    Returns:
+        Namespace: Parsed command-line arguments.
+    """
     parser = ArgumentParser("rolex")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--test", type=int, default=None)
@@ -87,6 +110,12 @@ def init_args(
 
 @contextmanager
 def seed_everything(seed=42):
+    """
+    Seed random number generators for reproducibility.
+
+    Args:
+        seed (int, optional): Seed value for random number generators. Defaults to 42.
+    """
     random.seed(seed)
     np.random.default_rng(seed)
     np.random.seed(seed)

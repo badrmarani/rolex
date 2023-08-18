@@ -3,6 +3,39 @@ from torch import nn
 
 
 class BayesianLinear(nn.Module):
+    """
+    Bayesian Linear Layer with Gaussian Variational Distribution.
+
+    Args:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+        prior_mean (float): Prior mean for weight initialization (default: 0.0).
+        prior_variance (float): Prior variance for weight initialization (default: 1.0).
+        posterior_mu_init (float): Initial value for posterior mean (default: 0).
+        posterior_rho_init (float): Initial value for posterior rho (default: -3.0).
+        bias (bool): Whether to include bias (default: True).
+
+    Attributes:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+        prior_mean (float): Prior mean for weight initialization.
+        prior_variance (float): Prior variance for weight initialization.
+        posterior_mu_init (float): Initial value for posterior mean.
+        posterior_rho_init (float): Initial value for posterior rho.
+        bias (bool): Whether bias is included.
+        weight_mu (nn.Parameter): Weight mean parameter.
+        weight_rho (nn.Parameter): Weight rho parameter.
+        weight_eps (torch.Tensor): Weight epsilon for reparameterization.
+        prior_weight_mu (torch.Tensor): Prior weight mean.
+        prior_weight_sigma (torch.Tensor): Prior weight sigma.
+        bias_mu (nn.Parameter | None): Bias mean parameter.
+        bias_rho (nn.Parameter | None): Bias rho parameter.
+        bias_eps (torch.Tensor | None): Bias epsilon for reparameterization.
+        prior_bias_mu (torch.Tensor | None): Prior bias mean.
+        prior_bias_sigma (torch.Tensor | None): Prior bias sigma.
+
+    """
+
     def __init__(
         self,
         in_features: int,
@@ -26,10 +59,14 @@ class BayesianLinear(nn.Module):
         self.weight_mu = nn.Parameter(torch.Tensor(out_features, in_features))
         self.weight_rho = nn.Parameter(torch.Tensor(out_features, in_features))
         self.register_buffer(
-            "weight_eps", torch.Tensor(out_features, in_features), persistent=False
+            "weight_eps",
+            torch.Tensor(out_features, in_features),
+            persistent=False,
         )
         self.register_buffer(
-            "prior_weight_mu", torch.Tensor(out_features, in_features), persistent=False
+            "prior_weight_mu",
+            torch.Tensor(out_features, in_features),
+            persistent=False,
         )
         self.register_buffer(
             "prior_weight_sigma",
@@ -59,6 +96,9 @@ class BayesianLinear(nn.Module):
         self.init_parameters()
 
     def init_parameters(self) -> None:
+        """
+        Initialize weight and bias parameters.
+        """
         self.prior_weight_mu.fill_(self.prior_mean)
         self.prior_weight_sigma.fill_(self.prior_variance)
         self.weight_mu.data.normal_(mean=self.posterior_mu_init, std=0.1)
@@ -70,6 +110,15 @@ class BayesianLinear(nn.Module):
             self.bias_rho.data.normal_(mean=self.posterior_rho_init, std=0.1)
 
     def forward(self, input):
+        """
+        Forward pass through the Bayesian Linear layer.
+
+        Args:
+            input (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
         weight_sigma = torch.log1p(self.weight_rho.exp())
         weight = self.weight_mu + weight_sigma * self.weight_eps.data.normal_()
         bias = None
@@ -81,6 +130,23 @@ class BayesianLinear(nn.Module):
 
 
 class FlipoutLinear(BayesianLinear):
+    """
+    Bayesian Linear Layer with Flipout reparameterization trick.
+
+    Args:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+        prior_mean (float): Prior mean for weight initialization (default: 0).
+        prior_variance (float): Prior variance for weight initialization (default: 1).
+        posterior_mu_init (float): Initial value for posterior mean (default: 0).
+        posterior_rho_init (float): Initial value for posterior rho (default: -3).
+        bias (bool): Whether to include bias (default: True).
+
+    Inherits from:
+        BayesianLinear
+
+    """
+
     def __init__(
         self,
         in_features: int,
@@ -91,10 +157,6 @@ class FlipoutLinear(BayesianLinear):
         posterior_rho_init: float = -3,
         bias: bool = True,
     ) -> None:
-        """
-        Implements Linear layer with Flipout reparameterization trick.
-        Ref: https://arxiv.org/abs/1803.04386
-        """
         super().__init__(
             in_features,
             out_features,
@@ -106,6 +168,15 @@ class FlipoutLinear(BayesianLinear):
         )
 
     def forward(self, inp):
+        """
+        Forward pass through the FlipoutLinear layer.
+
+        Args:
+            inp (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
         weight_sigma = torch.log1p(torch.exp(self.weight_rho))
         weight_delta = weight_sigma * self.weight_eps.data.normal_()
         bias = None
@@ -116,5 +187,7 @@ class FlipoutLinear(BayesianLinear):
 
         sign_r = inp.clone().uniform_(-1, 1).sign()
         sign_s = out.clone().uniform_(-1, 1).sign()
-        perturbed_outs = nn.functional.linear(inp * sign_r, weight_delta, bias) * sign_s
+        perturbed_outs = (
+            nn.functional.linear(inp * sign_r, weight_delta, bias) * sign_s
+        )
         return out + perturbed_outs

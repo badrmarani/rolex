@@ -1,49 +1,92 @@
+from typing import Optional
+
 import torch
-from torch import distributions
+from torch import distributions, nn
 from tqdm import tqdm, trange
-from utils import enable_dropout
+
+from .neg_marginal_likelihood import neg_marginal_marginal_log_likelihood
+from .utils import enable_dropout
+
+
+@torch.no_grad()
+def ess_x(
+    encoder: nn.Module,
+    decoder: nn.Module,
+    n_simulations: int,
+    n_samples_from_posterior: int,
+    data: torch.Tensor,
+    reduction: Optional[str] = "none",
+) -> torch.Tensor:
+    """
+    Calculate the Effective Sample Size of a sample from training data.
+
+    Args:
+        encoder (nn.Module): Encoder module.
+        decoder (nn.Module): Decoder module.
+        n_simulations (int): Number of simulations to perform.
+        n_samples_from_posterior (int): Number of samples from the posterior.
+        data (torch.Tensor): Input data.
+        reduction (str, optional): Reduction strategy for the calculated Effective Sample Size (default: "none").
+
+    Returns:
+        torch.Tensor: Effective Sample Size of x. The shape of the
+        returned tensor depends on the reduction option. If "none" is selected, the tensor
+        has the same shape as the input data. If "mean" is selected, the tensor is a scalar.
+
+    """
+    log_ess_x = []
+    for t in range(n_simulations):
+        log_ess_x += [
+            neg_marginal_marginal_log_likelihood(
+                encoder=encoder,
+                decoder=decoder,
+                n_samples_from_posterior=n_samples_from_posterior,
+                data=data,
+                reduction="none",
+            )
+        ]
+    log_ess_x = torch.stack(log_ess_x, dim=1)
+    log_ess_x = 2 * (-log_ess_x + log_ess_x.sum(dim=-1).unsqueeze(-1))
+    log_ess_x = -log_ess_x.logsumexp(1)
+    if reduction.lower() == "mean":
+        return log_ess_x.mean()
+    elif reduction.lower() == "none":
+        return log_ess_x
+    else:
+        raise NotImplementedError(f"{reduction.lower()} is not implemented.")
 
 
 @torch.no_grad()
 def effective_sample_size(
-    decoder,
-    latent_sample,
-    n_simulations,
-    n_sampled_outcomes,
-    dtype: torch.dtype = None,
-    reduction="none",
-    verbose=True,
-):
+    encoder: nn.Module,
+    decoder: nn.Module,
+    n_simulations: int,
+    n_samples_from_posterior: int,
+    z_samples: torch.Tensor,
+    reduction: Optional[str] = "none",
+) -> torch.Tensor:
     """
-    Ref: https://arxiv.org/abs/1912.05651v3.
+    Calculate the Effective Sample Size of the latent space.
+
+    Args:
+        encoder (nn.Module): Encoder module.
+        decoder (nn.Module): Decoder module.
+        n_simulations (int): Number of simulations to perform.
+        n_samples_from_posterior (int): Number of samples from the posterior.
+        z_samples (torch.Tensor): Samples from the latent space.
+        reduction (str, optional): Reduction strategy for the calculated Effective Sample Size (default: "none").
+
+    Returns:
+        torch.Tensor: Effective Sample Size of the latent space.
+
     """
-    decoder.eval()
-    enable_dropout(decoder)
-    log_ess_x = []
-
-    if verbose:
-        iterator = trange(1, 1 + n_simulations, desc="Effective Sample Size")
-    else:
-        iterator = range(1, 1 + n_simulations)
-    for _ in iterator:
-        log_px = []
-
-        x_recon_mu, x_recon_sigma = decoder(latent_sample)
-        p_theta_0 = distributions.Normal(x_recon_mu, x_recon_sigma)
-        x_recon = p_theta_0.rsample()
-        for _ in range(n_sampled_outcomes):
-            xx_recon_mu, xx_recon_sigma = decoder(latent_sample)
-            p_theta_m = distributions.Normal(xx_recon_mu, xx_recon_sigma)
-            log_px += [p_theta_m.log_prob(x_recon).sum(-1)]
-        log_px = torch.stack(log_px, dim=1)
-        log_wx = log_px - log_px.logsumexp(dim=1)[:, None]
-        log_ess_x += [-torch.logsumexp(2 * log_wx, dim=1)]
-    log_ess_x = torch.stack(log_ess_x, dim=1)
-    log_ess_z = -torch.tensor(n_simulations).log() + log_ess_x.logsumexp(dim=-1)
-    ess_z = log_ess_z.exp()
-    if reduction.lower() == "none":
-        return ess_z
-    elif reduction.lower() == "mean":
-        return ess_z.mean(-1)
-    else:
-        print(f"{reduction.lower()} is not implemented.")
+    x, std = decoder(z_samples)
+    x = torch.tanh(x)
+    return ess_x(
+        encoder=encoder,
+        decoder=decoder,
+        n_simulations=n_simulations,
+        n_samples_from_posterior=n_samples_from_posterior,
+        data=x,
+        reduction=reduction,
+    )

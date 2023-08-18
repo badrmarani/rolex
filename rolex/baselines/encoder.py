@@ -7,6 +7,22 @@ from .mlp import make_block
 
 
 class Encoder(nn.Module):
+    """
+    Encoder Module for encoding input data into mean and log variance of the latent space.
+
+    Args:
+        data_dim (int): The input data dimension.
+        compress_dims (Union[List[int], Tuple[int, ...]]): List or tuple of dimensions for compression.
+        embedding_dim (int): The dimension of the embedding or latent space.
+        **kwargs: Additional keyword arguments to pass to the layers.
+
+    Attributes:
+        seq (nn.Sequential): Sequential module containing the compression layers.
+        fc1 (nn.Linear): Linear layer for mean computation.
+        fc2 (nn.Linear): Linear layer for log variance computation.
+
+    """
+
     def __init__(
         self,
         data_dim: int,
@@ -31,6 +47,15 @@ class Encoder(nn.Module):
         self.embedding_dim = embedding_dim
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+        """
+        Forward pass of the Encoder module.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Tuple containing the mean and log variance of the latent space.
+        """
         feat = self.seq(x)
         mu = self.fc1(feat)
         logvar = self.fc2(feat)
