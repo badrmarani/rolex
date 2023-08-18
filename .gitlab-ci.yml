@@ -1,0 +1,51 @@
+variables:
+  GIT_STRATEGY: clone
+  GLOBAL_REGISTRY_USER: "fm00884"
+  GLOBAL_REGISTRY_TOKEN: "AKCp5cbnAg7ucXzcMCUdgNXAazDwj7pyEeZYYzjo8EaA21Zas5QzyxSxpbZWFWiXFcKN8dKAE"
+  # USE_SPHINX_VERSIONING: true
+  # If you want to have documentation on several versions (with https://github.com/sphinx-contrib/sphinxcontrib-versioning)
+  # Uncomment the variable above, update the rules of the `pages` job and requires "sphinx<2" in the `setup.cfg` file.
+  # For more information, see https://gitlab.michelin.com/dord/infra/central-ci-cd/ci-cd/-/blob/master/documentation/sphinx.md#job-parametrization.
+
+include:
+  - project: dord/infra/central-ci-cd/ci-cd
+    file:
+      - "global-settings.yml"
+      - "jobs-linter/python.yml"
+      - "jobs-tester/pytest.yml"
+      - "jobs-pages/sphinx.yml"
+      - "jobs-builder/wheel.yml"
+      - "jobs-pusher/wheel.yml"
+
+pythoncheck:
+  needs: []
+
+wheel:
+  needs: []
+
+pytest:
+  needs: []
+  parallel:
+    matrix:
+      - PYTHON_VERSION: "3.9"
+        MAIN_VERSION: "true"
+      - PYTHON_VERSION: ["3.10"]
+        MAIN_VERSION: "false"
+  rules:
+    - if: '$MAIN_VERSION == "true"'
+      allow_failure: false
+    - if: '$MAIN_VERSION == "false"'
+      allow_failure: true
+
+pages:
+  needs: ["pythoncheck", "wheel", "pytest"]
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
+      when: always
+    - when: never
+
+wheelpush:
+  needs: ["pythoncheck", "wheel", "pytest"]
+  rules:
+    - if: $CI_COMMIT_TAG != null
+      when: on_success

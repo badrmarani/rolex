@@ -10,6 +10,35 @@ from ..metrics import mutual_information
 
 
 class BaseProblem(Problem):
+    """
+    Base problem class for optimization using genetic algorithms.
+
+    Parameters:
+        decoder (nn.Module): The decoder network.
+        regressor (nn.Module): The regressor network.
+        uncertainty_threshold_value (float): The threshold value for uncertainty.
+        n_simulations (int): Number of simulations.
+        n_sampled_outcomes (int): Number of sampled outcomes.
+        no_uncertainty (bool): Whether uncertainty is considered or not.
+        lower_bound (float): Lower bound of optimization.
+        upper_bound (float): Upper bound of optimization.
+        embedding_dim (int): Dimension of the embedding.
+        maximize (bool): Whether to maximize the objective.
+        dtype (torch.dtype): Data type for tensors.
+        device (torch.device): Device to perform computations.
+
+    Attributes:
+        no_uncertainty (bool): Whether uncertainty is considered or not.
+        uncertainty_threshold_value (float): The threshold value for uncertainty.
+        n_simulations (int): Number of simulations.
+        n_sampled_outcomes (int): Number of sampled outcomes.
+        decoder (nn.Module): The decoder network.
+        regressor (nn.Module): The regressor network.
+        maximize (bool): Whether to maximize the objective.
+        dtype (torch.dtype): Data type for tensors.
+        device (torch.device): Device to perform computations.
+    """
+
     def __init__(
         self,
         decoder,
@@ -58,7 +87,9 @@ class BaseProblem(Problem):
         else:
             y = self.regressor(z)
 
-        out["F"] = np.column_stack([y]) if self.maximize else np.column_stack([-y])
+        out["F"] = (
+            np.column_stack([y]) if self.maximize else np.column_stack([-y])
+        )
 
         if not self.no_uncertainty:
             z = torch.from_numpy(z).to(self.dtype).to(self.device)
@@ -99,6 +130,31 @@ def genetic_algorithm(
     dtype: torch.dtype = None,
     device: torch.device = None,
 ):
+    """
+    Single-objective genetic algorithm optimization with uncertainty censoring.
+
+    Parameters:
+        decoder (nn.Module): The decoder network.
+        regressor (nn.Module): The regressor network.
+        uncertainty_threshold_value (float, optional): The threshold value for uncertainty.
+        n_simulations (int, optional): Number of simulations.
+        n_sampled_outcomes (int, optional): Number of sampled outcomes.
+        no_uncertainty (bool, optional): Whether uncertainty is considered or not.
+        save_history (bool, optional): Whether to save optimization history.
+        maximize (bool, optional): Whether to maximize the objective.
+        lower_bound (float, optional): Lower bound for optimization. Default is -20.0.
+        upper_bound (float, optional): Upper bound for optimization. Default is 20.0.
+        embedding_dim (int, optional): Dimension of the embedding.
+        n_steps (int, optional): Number of optimization steps.
+        pop_size (int, optional): Population size for the genetic algorithm.
+        seed (int, optional): Random seed for reproducibility.
+        verbose (bool, optional): Whether to print optimization progress.
+        dtype (torch.dtype, optional): Data type for tensors.
+        device (torch.device, optional): Device to perform computations.
+
+    Returns:
+        result: The optimization result.
+    """
     termination = get_termination("n_gen", n_steps)
     algorithm = GA(pop_size=pop_size, eliminate_duplicates=True)
     problem = BaseProblem(

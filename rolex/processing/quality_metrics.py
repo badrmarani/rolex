@@ -6,6 +6,8 @@ from ctgan.data_transformer import DataTransformer
 from sdmetrics.single_column import SingleColumnMetric
 from torch import nn
 
+from ..metrics.utils import enable_dropout
+
 
 @torch.no_grad()
 def generate_fake_samples(
@@ -14,7 +16,20 @@ def generate_fake_samples(
     n_samples: int,
     n_steps: Optional[int] = 10,
 ) -> pd.DataFrame:
-    decoder.train()
+    """
+    Generate fake samples using the provided decoder and transformer.
+
+    Args:
+        decoder (nn.Module): The decoder module to generate samples.
+        transformer (DataTransformer): The transformer for data conversion.
+        n_samples (int): Number of fake samples to generate.
+        n_steps (Optional[int]): Number of steps for generating samples.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the generated fake samples.
+    """
+    decoder.eval()
+    enable_dropout(decoder)
     t = next(decoder.parameters())
     noise = torch.randn(
         size=(n_samples, decoder.embedding_dim),
@@ -42,6 +57,17 @@ def sdmetrics_wrapper(
     fake_df: pd.DataFrame,
     metric: SingleColumnMetric,
 ) -> float:
+    """
+    Calculate the score for a given metric using real and fake data.
+
+    Args:
+        real_df (pd.DataFrame): Real data for the metric computation.
+        fake_df (pd.DataFrame): Fake data for the metric computation.
+        metric (SingleColumnMetric): The metric to compute the score for.
+
+    Returns:
+        float: The computed metric score.
+    """
     score = 0.0
     for column in real_df.columns:
         score += metric.compute(
@@ -58,6 +84,18 @@ def compute_quality_scores(
     transformer: DataTransformer,
     metrics: Tuple[SingleColumnMetric, ...],
 ) -> Dict[str, float]:
+    """
+    Compute quality scores for a set of metrics using real and fake data.
+
+    Args:
+        real_df (pd.DataFrame): Real data for quality score computation.
+        fake_df (pd.DataFrame): Fake data for quality score computation.
+        transformer (DataTransformer): The transformer for data conversion.
+        metrics (Tuple[SingleColumnMetric, ...]): Tuple of metrics to compute.
+
+    Returns:
+        Dict[str, float]: A dictionary of metric names and their corresponding scores.
+    """
     cat_columns, con_columns = [], []
     for col in transformer._column_transform_info_list:
         if col.column_type == "discrete":

@@ -26,6 +26,28 @@ def bayesian_optimization(
     lower_bound: float = -20.0,
     upper_bound: float = 20.0,
 ):
+    """
+    Bayesian Optimization with uncertainty censoring.
+
+    Args:
+        decoder: Decoder module.
+        regressor: Regressor module or function.
+        z (torch.Tensor): Initial latent representation.
+        y (torch.Tensor): Initial predictions.
+        n_steps (int): Number of optimization steps.
+        uncertainty_threshold_value (float, optional): Threshold value for uncertainty-based filtering. Default is None.
+        n_simulations (int, optional): Number of simulations for mutual information calculation. Default is 100.
+        n_sampled_outcomes (int, optional): Number of sampled outcomes for mutual information calculation. Default is 10.
+        no_uncertainty (bool, optional): Whether to use uncertainty-based filtering. Default is False.
+        save_history (bool, optional): Whether to save optimization history. Default is True.
+        lower_bound (float, optional): Lower bound for optimization. Default is -20.0.
+        upper_bound (float, optional): Upper bound for optimization. Default is 20.0.
+
+    Returns:
+        torch.Tensor: Optimized latent representations and predictions.
+        np.ndarray: Optimization history if save_history is True, else None.
+
+    """
     n_training_points, embedding_dim = z.size()
     device = z.device
 
@@ -106,7 +128,8 @@ def bayesian_optimization(
             with torch.no_grad():
                 logs += [
                     np.concatenate(
-                        [new_z.cpu().numpy(), pred_y.view(-1, 1).cpu().numpy()], axis=1
+                        [new_z.cpu().numpy(), pred_y.view(-1, 1).cpu().numpy()],
+                        axis=1,
                     )
                 ]
 

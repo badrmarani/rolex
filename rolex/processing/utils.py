@@ -7,6 +7,17 @@ from tqdm import tqdm
 
 
 def highly_correlated_features(data, features, correlation_threshold):
+    """
+    Identify highly correlated features in a DataFrame.
+
+    Args:
+        data (pd.DataFrame): The input DataFrame.
+        features (List[str]): List of feature names.
+        correlation_threshold (float): Threshold for correlation magnitude.
+
+    Returns:
+        List[str]: List of highly correlated feature names.
+    """
     corr_data = abs(data[features].corr())
     correlated_features = np.where(np.abs(corr_data) > correlation_threshold)
     correlated_features = [
@@ -23,7 +34,20 @@ def highly_correlated_features(data, features, correlation_threshold):
     return list(set(out))
 
 
-def oversample(data: pd.DataFrame, columns: str = None, oversample_quantile=0.5):
+def oversample(
+    data: pd.DataFrame, columns: str = None, oversample_quantile=0.5
+):
+    """
+    Perform oversampling on selected columns of a DataFrame.
+
+    Args:
+        data (pd.DataFrame): The input DataFrame.
+        columns (Optional[Union[str, List[str]]]): Columns to oversample. If None, all columns are considered.
+        oversample_quantile (float): Quantile threshold for oversampling.
+
+    Returns:
+        pd.DataFrame: DataFrame with oversampled rows.
+    """
     temp_data = data.copy()
     df_valid_pos_info = pd.DataFrame(
         columns=["column", "value", "index", "diff_quantile", "diff_q75"]
@@ -68,9 +92,9 @@ def oversample(data: pd.DataFrame, columns: str = None, oversample_quantile=0.5)
             # )
         df_valid_pos_info.drop_duplicates(subset=["value"], inplace=True)
 
-        unique_val_per_col = df_valid_pos_info[df_valid_pos_info["column"] == col][
-            "value"
-        ].unique()
+        unique_val_per_col = df_valid_pos_info[
+            df_valid_pos_info["column"] == col
+        ]["value"].unique()
 
         for unique_val in unique_val_per_col:
             t = df_valid_pos_info[df_valid_pos_info["value"] == unique_val]
@@ -84,12 +108,26 @@ def oversample(data: pd.DataFrame, columns: str = None, oversample_quantile=0.5)
             # )
             temp_data = temp_data.append(temp_data.iloc[idx_oversample, :])
 
-        iterator.set_description(f"column:{col}/ new_shape:{temp_data.shape[0]}")
+        iterator.set_description(
+            f"column:{col}/ new_shape:{temp_data.shape[0]}"
+        )
     return temp_data
 
 
 def get_categorical_columns(data, qq_threshold):
-    iterator = tqdm(data.columns, ascii=True, desc="Determine categorical columns")
+    """
+    Determine categorical columns in a DataFrame using quantile-quantile plot.
+
+    Args:
+        data (pd.DataFrame): The input DataFrame.
+        qq_threshold (float): Threshold for Q-Q plot statistic.
+
+    Returns:
+        List[str]: List of column names identified as categorical.
+    """
+    iterator = tqdm(
+        data.columns, ascii=True, desc="Determine categorical columns"
+    )
     categorical_columns = []
     for col in iterator:
         _, fit = stats.probplot(data[col], dist="norm")

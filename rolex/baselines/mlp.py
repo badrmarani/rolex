@@ -13,6 +13,20 @@ def make_block(
     mode: Optional[str] = None,
     **kwargs,
 ) -> List[nn.Module]:
+    """
+    Create a block of layers.
+
+    Args:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+        p (Optional[float]): Dropout probability (default: 0.0).
+        mode (Optional[str]): Mode for layer creation, e.g., "bayesian" (default: None).
+        **kwargs: Additional keyword arguments to pass to the layers.
+
+    Returns:
+        List[nn.Module]: List of layers composing the block.
+
+    """
     if mode is not None and mode.lower() == "bayesian":
         linear = BayesianLinear
     else:

@@ -9,11 +9,27 @@ from tensorboard.backend.event_processing import event_accumulator
 
 
 def parse_list(raw: str) -> Any:
+    """
+    Parses a string representation of a list and returns the corresponding Python object.
+
+    Args:
+        raw (str): The string representation of the list.
+
+    Returns:
+        Any: The parsed Python object.
+    """
     pattern = raw.replace('"', "").replace("\\'", "'")
     return literal_eval(pattern)
 
 
 def read_tensorboard_logs(pathname: str, save: bool = True) -> None:
+    """
+    Reads TensorBoard logs from the specified directory and processes them.
+
+    Args:
+        pathname (str): The directory path containing the TensorBoard event files.
+        save (bool, optional): Whether to save the processed data to CSV files. Defaults to True.
+    """
     pathname = os.path.join(pathname, "*/event*")
     for path in glob(pathname):
         item = re.search(r"[-+]?(?:\d*\.*\d+)", path).group()
